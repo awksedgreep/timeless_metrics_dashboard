@@ -687,35 +687,15 @@ defmodule TimelessDashboard.Page do
     :exit, _ -> nil
   end
 
-  # Compute real on-disk usage by summing all DB files (main + shards)
+  # Add derived fields for display (storage_bytes already includes all shard DBs)
   defp enrich_info(info) do
-    data_dir = Path.dirname(info.db_path)
-
-    disk_bytes =
-      case File.ls(data_dir) do
-        {:ok, files} ->
-          files
-          |> Enum.filter(&String.ends_with?(&1, ".db"))
-          |> Enum.reduce(0, fn file, acc ->
-            path = Path.join(data_dir, file)
-
-            case File.stat(path) do
-              {:ok, %{size: size}} -> acc + size
-              _ -> acc
-            end
-          end)
-
-        _ ->
-          info.storage_bytes
-      end
-
     disk_bytes_per_point =
       if info.total_points > 0,
-        do: Float.round(disk_bytes / info.total_points, 2),
+        do: Float.round(info.storage_bytes / info.total_points, 2),
         else: 0.0
 
     Map.merge(info, %{
-      disk_bytes: disk_bytes,
+      disk_bytes: info.storage_bytes,
       disk_bytes_per_point: disk_bytes_per_point
     })
   end
