@@ -78,5 +78,40 @@ defmodule TimelessDashboard.DefaultMetricsTest do
         assert %Telemetry.Metrics.Summary{} = metric
       end)
     end
+
+    test "includes handle_params and live_component events" do
+      metrics = DefaultMetrics.live_view_metrics()
+      names = Enum.map(metrics, fn m -> Enum.join(m.name, ".") end)
+      assert Enum.any?(names, &String.contains?(&1, "handle_params"))
+      assert Enum.any?(names, &String.contains?(&1, "live_component"))
+    end
+  end
+
+  describe "timeless_metrics/0" do
+    test "returns non-empty list of valid metrics" do
+      metrics = DefaultMetrics.timeless_metrics()
+      assert is_list(metrics)
+      assert length(metrics) > 0
+
+      Enum.each(metrics, fn metric ->
+        assert %{__struct__: struct} = metric
+        assert struct in [
+                 Telemetry.Metrics.Counter,
+                 Telemetry.Metrics.Summary
+               ]
+      end)
+    end
+
+    test "covers buffer, segment, query, rollup, http, and backpressure" do
+      metrics = DefaultMetrics.timeless_metrics()
+      names = Enum.map(metrics, fn m -> Enum.join(m.name, ".") end)
+
+      assert Enum.any?(names, &String.starts_with?(&1, "timeless.buffer"))
+      assert Enum.any?(names, &String.starts_with?(&1, "timeless.segment"))
+      assert Enum.any?(names, &String.starts_with?(&1, "timeless.query"))
+      assert Enum.any?(names, &String.starts_with?(&1, "timeless.rollup"))
+      assert Enum.any?(names, &String.starts_with?(&1, "timeless.http"))
+      assert Enum.any?(names, &String.starts_with?(&1, "timeless.write"))
+    end
   end
 end

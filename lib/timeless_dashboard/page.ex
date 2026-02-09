@@ -72,9 +72,11 @@ defmodule TimelessDashboard.Page do
         active_tab: :overview,
         time_range: "1h",
         selected_metric: nil,
+        metric_search: "",
         info: nil,
         metrics_list: [],
         chart_svg: nil,
+        data_extent: nil,
         alerts: [],
         backups: [],
         flash_msg: nil
@@ -106,6 +108,10 @@ defmodule TimelessDashboard.Page do
       |> load_chart()
 
     {:noreply, socket}
+  end
+
+  def handle_event("search_metrics", %{"search" => search}, socket) do
+    {:noreply, assign(socket, metric_search: search)}
   end
 
   def handle_event("select_metric", %{"metric" => metric}, socket) do
@@ -179,7 +185,9 @@ defmodule TimelessDashboard.Page do
             selected_metric={@selected_metric}
             time_range={@time_range}
             chart_svg={@chart_svg}
+            data_extent={@data_extent}
             store={@store}
+            metric_search={@metric_search}
           />
         <% :alerts -> %>
           <.render_alerts alerts={@alerts} />
@@ -208,6 +216,7 @@ defmodule TimelessDashboard.Page do
           {"Disk Usage", format_bytes(@info.disk_bytes)},
           {"Disk Bytes/Point", @info.disk_bytes_per_point},
           {"Buffer Shards", @info.buffer_shards},
+          {"Data Span", format_data_span(@info.oldest_timestamp, @info.newest_timestamp)},
           {"Oldest", format_ts(@info.oldest_timestamp)},
           {"Newest", format_ts(@info.newest_timestamp)}
         ]}
@@ -240,24 +249,63 @@ defmodule TimelessDashboard.Page do
   end
 
   defp render_metrics(assigns) do
+    filtered =
+      if assigns.metric_search == "" do
+        assigns.metrics_list
+      else
+        needle = String.downcase(assigns.metric_search)
+        Enum.filter(assigns.metrics_list, &String.contains?(String.downcase(&1), needle))
+      end
+
+    grouped = group_metrics_by_prefix(filtered)
+    assigns = assign(assigns, filtered: filtered, grouped: grouped)
+
     ~H"""
     <div style="display:flex;gap:16px">
-      <div style="width:220px;flex-shrink:0">
-        <h4 style="font-size:14px;font-weight:600;margin:0 0 8px 0">Metrics</h4>
+      <div style="width:240px;flex-shrink:0">
+        <h4 style="font-size:14px;font-weight:600;margin:0 0 8px 0">
+          Metrics
+          <span :if={@metrics_list != []} style="font-weight:400;color:#9ca3af;font-size:12px">
+            (<%= length(@filtered) %>/<%= length(@metrics_list) %>)
+          </span>
+        </h4>
+        <form phx-change="search_metrics" style="margin-bottom:8px">
+          <input
+            type="text"
+            name="search"
+            value={@metric_search}
+            placeholder="Filter metrics..."
+            phx-debounce="150"
+            autocomplete="off"
+            style="width:100%;padding:4px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:12px;box-sizing:border-box"
+          />
+        </form>
         <div :if={@metrics_list == []} style="color:#6b7280;font-size:13px">No metrics yet.</div>
-        <div
-          :for={metric <- @metrics_list}
-          phx-click="select_metric"
-          phx-value-metric={metric}
-          style={"padding:4px 8px;cursor:pointer;border-radius:4px;font-size:12px;font-family:monospace;word-break:break-all;margin-bottom:2px;" <>
-            if(metric == @selected_metric, do: "background:#dbeafe;color:#1e40af;", else: "color:#374151;")}
-        >
-          <%= metric %>
+        <div :if={@filtered == [] && @metrics_list != []} style="color:#6b7280;font-size:13px">No matches.</div>
+        <div style="max-height:500px;overflow-y:auto">
+          <div :for={{prefix, metrics} <- @grouped} style="margin-bottom:6px">
+            <div style="font-size:11px;font-weight:600;color:#9ca3af;padding:2px 8px;text-transform:uppercase;letter-spacing:0.5px">
+              <%= prefix %>
+            </div>
+            <div
+              :for={metric <- metrics}
+              phx-click="select_metric"
+              phx-value-metric={metric}
+              style={"padding:3px 8px 3px 16px;cursor:pointer;border-radius:4px;font-size:12px;font-family:monospace;word-break:break-all;" <>
+                if(metric == @selected_metric, do: "background:#dbeafe;color:#1e40af;", else: "color:#374151;")}
+            >
+              <%= short_metric_name(metric, prefix) %>
+            </div>
+          </div>
         </div>
       </div>
 
       <div style="flex:1;min-width:0">
         <.time_picker selected={@time_range} />
+
+        <div :if={@data_extent} style="font-size:12px;color:#9ca3af;margin:4px 0">
+          <%= @data_extent %>
+        </div>
 
         <div :if={@chart_svg}>
           <.chart_embed svg={@chart_svg} />
@@ -399,7 +447,7 @@ defmodule TimelessDashboard.Page do
         title="Database"
         fields={[
           {"Path", @info.db_path},
-          {"Main DB Size", format_bytes(@info.storage_bytes)},
+          {"Total DB Size", format_bytes(@info.disk_bytes)},
           {"Raw Retention", format_duration(@info.raw_retention)}
         ]}
       />
@@ -528,15 +576,51 @@ defmodule TimelessDashboard.Page do
               theme: :auto
             )
 
-          assign(socket, chart_svg: svg)
+          data_extent = compute_data_extent(series, range_seconds)
+          assign(socket, chart_svg: svg, data_extent: data_extent)
 
         _ ->
-          assign(socket, chart_svg: nil)
+          assign(socket, chart_svg: nil, data_extent: nil)
       end
     else
-      assign(socket, chart_svg: nil)
+      assign(socket, chart_svg: nil, data_extent: nil)
     end
   end
+
+  # Returns a hint string if data covers <75% of the selected range, nil otherwise
+  defp compute_data_extent(series, range_seconds) do
+    timestamps =
+      Enum.flat_map(series, fn %{data: data} ->
+        Enum.map(data, fn {ts, _val} -> ts end)
+      end)
+
+    case {Enum.min(timestamps, fn -> nil end), Enum.max(timestamps, fn -> nil end)} do
+      {nil, _} -> nil
+      {_, nil} -> nil
+      {min_ts, max_ts} ->
+        actual = max_ts - min_ts
+        if actual < range_seconds * 0.75 do
+          "Showing #{format_duration_human(actual)} of #{format_duration_human(range_seconds)}"
+        end
+    end
+  end
+
+  defp format_duration_human(seconds) when seconds >= 86_400 do
+    days = Float.round(seconds / 86_400, 1)
+    if days == Float.round(days), do: "#{trunc(days)}d", else: "#{days}d"
+  end
+
+  defp format_duration_human(seconds) when seconds >= 3600 do
+    hours = Float.round(seconds / 3600, 1)
+    if hours == Float.round(hours), do: "#{trunc(hours)}h", else: "#{hours}h"
+  end
+
+  defp format_duration_human(seconds) when seconds >= 60 do
+    mins = Float.round(seconds / 60, 1)
+    if mins == Float.round(mins), do: "#{trunc(mins)}m", else: "#{mins}m"
+  end
+
+  defp format_duration_human(seconds), do: "#{seconds}s"
 
   defp load_alerts(socket) do
     case Timeless.list_alerts(socket.assigns.store) do
@@ -683,11 +767,44 @@ defmodule TimelessDashboard.Page do
   defp format_duration(:forever), do: "forever"
   defp format_duration(_), do: "—"
 
+  defp format_data_span(oldest, newest) when is_integer(oldest) and is_integer(newest) do
+    span = newest - oldest
+    age = System.os_time(:second) - newest
+
+    span_str = format_duration_human(span)
+    age_str = if age < 60, do: "live", else: "#{format_duration_human(age)} ago"
+
+    "#{span_str} (latest: #{age_str})"
+  end
+
+  defp format_data_span(_, _), do: "—"
+
   # 16 bytes uncompressed per point (8-byte timestamp + 8-byte float64)
   defp format_ratio(bpp) when is_number(bpp) and bpp > 0,
     do: "#{Float.round(16 / bpp, 1)}:1 (#{Float.round(100 - bpp / 16 * 100, 1)}% smaller)"
 
   defp format_ratio(_), do: "—"
+
+  # Group metrics by their first two dotted segments (e.g. "telemetry.vm")
+  # Returns [{prefix, [full_metric_name, ...]}, ...] sorted by prefix
+  defp group_metrics_by_prefix(metrics) do
+    metrics
+    |> Enum.group_by(fn name ->
+      case String.split(name, ".", parts: 3) do
+        [a, b | _] -> "#{a}.#{b}"
+        _ -> name
+      end
+    end)
+    |> Enum.sort_by(fn {prefix, _} -> prefix end)
+  end
+
+  # Strip the group prefix from the metric name for compact sidebar display
+  defp short_metric_name(metric, prefix) do
+    case String.trim_leading(metric, prefix <> ".") do
+      ^metric -> metric
+      short -> short
+    end
+  end
 
   defp alert_state_style("ok"), do: "background:#dcfce7;color:#166534;"
   defp alert_state_style("firing"), do: "background:#fee2e2;color:#991b1b;"

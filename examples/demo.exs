@@ -88,7 +88,9 @@ Application.put_env(:timeless_dashboard, Demo.Endpoint,
   store: :demo,
   metrics:
     TimelessDashboard.DefaultMetrics.vm_metrics() ++
-    TimelessDashboard.DefaultMetrics.phoenix_metrics(),
+    TimelessDashboard.DefaultMetrics.phoenix_metrics() ++
+    TimelessDashboard.DefaultMetrics.live_view_metrics() ++
+    TimelessDashboard.DefaultMetrics.timeless_metrics(),
   flush_interval: 5_000,
   name: :demo_reporter
 )
