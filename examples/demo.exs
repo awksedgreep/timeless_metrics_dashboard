@@ -9,8 +9,6 @@ Logger.configure(level: :info)
 # --- Telemetry Metrics module (used by both Reporter and LiveDashboard) ---
 
 defmodule Demo.Telemetry do
-  import Telemetry.Metrics
-
   def metrics do
     TimelessDashboard.DefaultMetrics.vm_metrics() ++
       TimelessDashboard.DefaultMetrics.phoenix_metrics() ++
@@ -61,6 +59,11 @@ defmodule Demo.Endpoint do
 
   socket "/live", Phoenix.LiveView.Socket,
     websocket: [connect_info: [session: @session_options]]
+
+  plug Plug.Parsers,
+    parsers: [:urlencoded, :multipart, :json],
+    pass: ["*/*"],
+    json_decoder: Jason
 
   plug Plug.Session, @session_options
   plug Demo.Router
