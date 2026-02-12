@@ -133,7 +133,11 @@ defmodule TimelessDashboard.Page do
     try do
       {:ok, result} = Timeless.backup(store, target)
       size = format_bytes(result.total_bytes)
-      {:noreply, socket |> set_flash("Backup created: #{length(result.files)} files, #{size}") |> load_storage()}
+
+      {:noreply,
+       socket
+       |> set_flash("Backup created: #{length(result.files)} files, #{size}")
+       |> load_storage()}
     rescue
       e -> {:noreply, set_flash(socket, "Backup failed: #{Exception.message(e)}")}
     end
@@ -595,10 +599,15 @@ defmodule TimelessDashboard.Page do
       end)
 
     case {Enum.min(timestamps, fn -> nil end), Enum.max(timestamps, fn -> nil end)} do
-      {nil, _} -> nil
-      {_, nil} -> nil
+      {nil, _} ->
+        nil
+
+      {_, nil} ->
+        nil
+
       {min_ts, max_ts} ->
         actual = max_ts - min_ts
+
         if actual < range_seconds * 0.75 do
           "Showing #{format_duration_human(actual)} of #{format_duration_human(range_seconds)}"
         end

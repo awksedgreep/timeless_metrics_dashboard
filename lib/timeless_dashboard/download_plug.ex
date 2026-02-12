@@ -51,7 +51,11 @@ defmodule TimelessDashboard.DownloadPlug do
   end
 
   defp serve_tar_gz(conn, name, backup_path) do
-    tmp_tar = Path.join(System.tmp_dir!(), "timeless_backup_#{name}_#{:erlang.unique_integer([:positive])}.tar.gz")
+    tmp_tar =
+      Path.join(
+        System.tmp_dir!(),
+        "timeless_backup_#{name}_#{:erlang.unique_integer([:positive])}.tar.gz"
+      )
 
     # Use {name_in_tar, full_path} tuples so the tar has clean filenames
     files =
@@ -67,7 +71,10 @@ defmodule TimelessDashboard.DownloadPlug do
 
     conn
     |> put_resp_content_type("application/gzip")
-    |> put_resp_header("content-disposition", ~s(attachment; filename="timeless_backup_#{name}.tar.gz"))
+    |> put_resp_header(
+      "content-disposition",
+      ~s(attachment; filename="timeless_backup_#{name}.tar.gz")
+    )
     |> send_resp(200, tar_data)
   end
 end

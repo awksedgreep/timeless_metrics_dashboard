@@ -11,6 +11,7 @@ defmodule TimelessDashboard.DefaultMetricsTest do
 
       Enum.each(metrics, fn metric ->
         assert %{__struct__: struct} = metric
+
         assert struct in [
                  Telemetry.Metrics.Counter,
                  Telemetry.Metrics.Sum,
@@ -38,6 +39,7 @@ defmodule TimelessDashboard.DefaultMetricsTest do
 
       Enum.each(metrics, fn metric ->
         assert %{__struct__: struct} = metric
+
         assert struct in [
                  Telemetry.Metrics.Counter,
                  Telemetry.Metrics.Summary
@@ -95,6 +97,7 @@ defmodule TimelessDashboard.DefaultMetricsTest do
 
       Enum.each(metrics, fn metric ->
         assert %{__struct__: struct} = metric
+
         assert struct in [
                  Telemetry.Metrics.Counter,
                  Telemetry.Metrics.Summary

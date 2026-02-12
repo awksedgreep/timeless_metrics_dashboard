@@ -6,7 +6,12 @@ defmodule TimelessDashboard.ReporterTest do
   @store :reporter_test_store
 
   setup do
-    data_dir = Path.join(System.tmp_dir!(), "timeless_reporter_test_#{:erlang.unique_integer([:positive])}")
+    data_dir =
+      Path.join(
+        System.tmp_dir!(),
+        "timeless_reporter_test_#{:erlang.unique_integer([:positive])}"
+      )
+
     File.mkdir_p!(data_dir)
 
     start_supervised!({Timeless, name: @store, data_dir: data_dir})
@@ -29,7 +34,12 @@ defmodule TimelessDashboard.ReporterTest do
          store: @store, metrics: metrics, flush_interval: 0, name: :reporter_basic}
       )
 
-      :telemetry.execute([:test, :request], %{duration: System.convert_time_unit(42, :millisecond, :native)}, %{})
+      :telemetry.execute(
+        [:test, :request],
+        %{duration: System.convert_time_unit(42, :millisecond, :native)},
+        %{}
+      )
+
       TimelessDashboard.Reporter.flush(:reporter_basic)
       Timeless.flush(@store)
 
@@ -149,7 +159,10 @@ defmodule TimelessDashboard.ReporterTest do
 
       # Handler should be detached
       handlers = :telemetry.list_handlers([:test, :lifecycle])
-      refute Enum.any?(handlers, fn h -> h.id == {TimelessDashboard.Reporter, "telemetry", [:test, :lifecycle]} end)
+
+      refute Enum.any?(handlers, fn h ->
+               h.id == {TimelessDashboard.Reporter, "telemetry", [:test, :lifecycle]}
+             end)
     end
   end
 
@@ -161,7 +174,11 @@ defmodule TimelessDashboard.ReporterTest do
 
       start_supervised!(
         {TimelessDashboard.Reporter,
-         store: @store, metrics: metrics, flush_interval: 0, prefix: "custom", name: :reporter_prefix}
+         store: @store,
+         metrics: metrics,
+         flush_interval: 0,
+         prefix: "custom",
+         name: :reporter_prefix}
       )
 
       :telemetry.execute([:test, :prefix], %{count: 1}, %{})

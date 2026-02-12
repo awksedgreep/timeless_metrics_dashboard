@@ -4,8 +4,8 @@ defmodule TimelessDashboard.Components do
   use Phoenix.Component
 
   @doc "Time range selector button group."
-  attr :selected, :string, required: true
-  attr :ranges, :list, default: ["15m", "1h", "6h", "24h", "7d"]
+  attr(:selected, :string, required: true)
+  attr(:ranges, :list, default: ["15m", "1h", "6h", "24h", "7d"])
 
   def time_picker(assigns) do
     ~H"""
@@ -24,8 +24,8 @@ defmodule TimelessDashboard.Components do
   end
 
   @doc "Wraps an SVG chart string with an optional title."
-  attr :title, :string, default: nil
-  attr :svg, :string, required: true
+  attr(:title, :string, default: nil)
+  attr(:svg, :string, required: true)
 
   def chart_embed(assigns) do
     ~H"""

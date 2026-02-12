@@ -6,7 +6,9 @@ defmodule TimelessDashboard.PageTest do
   @store :page_test_store
 
   setup do
-    data_dir = Path.join(System.tmp_dir!(), "timeless_page_test_#{:erlang.unique_integer([:positive])}")
+    data_dir =
+      Path.join(System.tmp_dir!(), "timeless_page_test_#{:erlang.unique_integer([:positive])}")
+
     File.mkdir_p!(data_dir)
 
     start_supervised!({Timeless, name: @store, data_dir: data_dir})
