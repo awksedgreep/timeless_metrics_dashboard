@@ -1,6 +1,6 @@
 defmodule TimelessDashboard do
   @moduledoc """
-  Telemetry reporter and LiveDashboard page for Timeless.
+  Telemetry reporter and LiveDashboard page for TimelessMetrics.
 
   Captures `Telemetry.Metrics` events into a Timeless store, giving you
   persistent historical metrics that survive restarts — unlike the built-in
@@ -65,7 +65,7 @@ defmodule TimelessDashboard do
     to = System.os_time(:second)
 
     # Query all label combinations for this metric
-    case Timeless.query_multi(store, metric_name, %{}, from: from, to: to) do
+    case TimelessMetrics.query_multi(store, metric_name, %{}, from: from, to: to) do
       {:ok, series_list} ->
         series_list
         |> Enum.flat_map(fn %{labels: labels, points: points} ->

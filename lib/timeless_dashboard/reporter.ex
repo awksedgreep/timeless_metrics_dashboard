@@ -202,7 +202,7 @@ defmodule TimelessDashboard.Reporter do
         series_id
 
       [] ->
-        series_id = Timeless.resolve_series(store, metric_name, labels)
+        series_id = TimelessMetrics.resolve_series(store, metric_name, labels)
         :ets.insert(cache, {key, series_id})
         series_id
     end
@@ -218,7 +218,7 @@ defmodule TimelessDashboard.Reporter do
           {series_id, value, timestamp}
         end)
 
-      Timeless.write_batch_resolved(state.store, batch)
+      TimelessMetrics.write_batch_resolved(state.store, batch)
     end
   end
 
@@ -257,7 +257,7 @@ defmodule TimelessDashboard.Reporter do
       unit = format_unit(metric.unit)
       description = Map.get(metric, :description)
 
-      Timeless.register_metric(store, metric_name, type,
+      TimelessMetrics.register_metric(store, metric_name, type,
         unit: unit,
         description: description
       )

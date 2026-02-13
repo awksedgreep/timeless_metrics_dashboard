@@ -1,6 +1,6 @@
 defmodule TimelessDashboard.Page do
   @moduledoc """
-  LiveDashboard page plugin for Timeless.
+  LiveDashboard page plugin for TimelessMetrics.
 
   Shows four tabs: Overview, Metrics, Alerts, and Storage.
 
@@ -51,7 +51,7 @@ defmodule TimelessDashboard.Page do
     store = session.store
 
     try do
-      info = Timeless.info(store)
+      info = TimelessMetrics.info(store)
       {:ok, "Timeless (#{info.series_count})"}
     rescue
       _ -> {:disabled, "Timeless", "Store not running"}
@@ -125,13 +125,13 @@ defmodule TimelessDashboard.Page do
 
   def handle_event("trigger_backup", _params, socket) do
     store = socket.assigns.store
-    info = Timeless.info(store)
+    info = TimelessMetrics.info(store)
     data_dir = Path.dirname(info.db_path)
     timestamp = Calendar.strftime(DateTime.utc_now(), "%Y%m%d_%H%M%S")
     target = Path.join([data_dir, "backups", timestamp])
 
     try do
-      {:ok, result} = Timeless.backup(store, target)
+      {:ok, result} = TimelessMetrics.backup(store, target)
       size = format_bytes(result.total_bytes)
 
       {:noreply,
@@ -144,7 +144,7 @@ defmodule TimelessDashboard.Page do
   end
 
   def handle_event("flush_store", _params, socket) do
-    Timeless.flush(socket.assigns.store)
+    TimelessMetrics.flush(socket.assigns.store)
     {:noreply, socket |> set_flash("Store flushed") |> load_data()}
   end
 
@@ -332,7 +332,7 @@ defmodule TimelessDashboard.Page do
   defp render_metric_metadata(assigns) do
     metadata =
       if assigns.metric do
-        case Timeless.get_metadata(assigns.store, assigns.metric) do
+        case TimelessMetrics.get_metadata(assigns.store, assigns.metric) do
           {:ok, meta} -> meta
           _ -> nil
         end
@@ -353,7 +353,7 @@ defmodule TimelessDashboard.Page do
     %{
       title: "Alert when VM memory exceeds 512 MB:",
       code: """
-      Timeless.create_alert(:metrics,
+      TimelessMetrics.create_alert(:metrics,
         name: "high_memory",
         metric: "telemetry.vm.memory.total",
         condition: :above,
@@ -365,7 +365,7 @@ defmodule TimelessDashboard.Page do
     %{
       title: "Alert when process count drops below 10:",
       code: """
-      Timeless.create_alert(:metrics,
+      TimelessMetrics.create_alert(:metrics,
         name: "low_processes",
         metric: "telemetry.vm.system_counts.process_count",
         condition: :below,
@@ -376,7 +376,7 @@ defmodule TimelessDashboard.Page do
     %{
       title: "Alert with webhook (ntfy.sh, Slack, etc.):",
       code: """
-      Timeless.create_alert(:metrics,
+      TimelessMetrics.create_alert(:metrics,
         name: "high_request_latency",
         metric: "telemetry.phoenix.endpoint.stop.duration",
         condition: :above,
@@ -438,7 +438,7 @@ defmodule TimelessDashboard.Page do
         <code>:threshold</code>, <code>:duration</code> (seconds before firing, default 0),
         <code>:labels</code> (filter map), <code>:aggregate</code> (default <code>:avg</code>),
         <code>:webhook_url</code> (POST on state change).
-        Delete with <code>Timeless.delete_alert(:metrics, rule_id)</code>.
+        Delete with <code>TimelessMetrics.delete_alert(:metrics, rule_id)</code>.
       </p>
     </div>
     """
@@ -539,7 +539,7 @@ defmodule TimelessDashboard.Page do
     store = socket.assigns.store
 
     metrics_list =
-      case Timeless.list_metrics(store) do
+      case TimelessMetrics.list_metrics(store) do
         {:ok, list} -> list
         _ -> []
       end
@@ -566,7 +566,7 @@ defmodule TimelessDashboard.Page do
       from = now - range_seconds
       bucket_seconds = max(div(range_seconds, @target_buckets), 1)
 
-      case Timeless.query_aggregate_multi(store, metric, %{},
+      case TimelessMetrics.query_aggregate_multi(store, metric, %{},
              from: from,
              to: now,
              bucket: {bucket_seconds, :seconds},
@@ -574,7 +574,7 @@ defmodule TimelessDashboard.Page do
            ) do
         {:ok, series} when series != [] ->
           svg =
-            Timeless.Chart.render(metric, series,
+            TimelessMetrics.Chart.render(metric, series,
               width: socket.assigns.chart_width,
               height: socket.assigns.chart_height,
               theme: :auto
@@ -632,7 +632,7 @@ defmodule TimelessDashboard.Page do
   defp format_duration_human(seconds), do: "#{seconds}s"
 
   defp load_alerts(socket) do
-    case Timeless.list_alerts(socket.assigns.store) do
+    case TimelessMetrics.list_alerts(socket.assigns.store) do
       {:ok, alerts} -> assign(socket, alerts: alerts)
       _ -> assign(socket, alerts: [])
     end
@@ -689,7 +689,7 @@ defmodule TimelessDashboard.Page do
   end
 
   defp safe_info(store) do
-    Timeless.info(store)
+    TimelessMetrics.info(store)
   rescue
     _ -> nil
   catch

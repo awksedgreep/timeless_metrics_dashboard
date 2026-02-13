@@ -11,7 +11,7 @@ defmodule TimelessDashboard.PageTest do
 
     File.mkdir_p!(data_dir)
 
-    start_supervised!({Timeless, name: @store, data_dir: data_dir})
+    start_supervised!({TimelessMetrics, name: @store, data_dir: data_dir})
 
     on_exit(fn ->
       File.rm_rf!(data_dir)
@@ -53,8 +53,8 @@ defmodule TimelessDashboard.PageTest do
     end
 
     test "shows correct count after writing data" do
-      Timeless.write(@store, "test.metric", %{"host" => "a"}, 42.0)
-      Timeless.flush(@store)
+      TimelessMetrics.write(@store, "test.metric", %{"host" => "a"}, 42.0)
+      TimelessMetrics.flush(@store)
 
       {:ok, session} = Page.init(store: @store)
       {:ok, text} = Page.menu_link(session, %{})

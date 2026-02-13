@@ -14,7 +14,7 @@ defmodule TimelessDashboard.MetricsHistoryTest do
 
     File.mkdir_p!(data_dir)
 
-    start_supervised!({Timeless, name: @store, data_dir: data_dir})
+    start_supervised!({TimelessMetrics, name: @store, data_dir: data_dir})
 
     on_exit(fn ->
       File.rm_rf!(data_dir)
@@ -24,8 +24,8 @@ defmodule TimelessDashboard.MetricsHistoryTest do
   end
 
   defp write_and_flush(metric_name, labels, value, timestamp) do
-    Timeless.write(@store, metric_name, labels, value, timestamp: timestamp)
-    Timeless.flush(@store)
+    TimelessMetrics.write(@store, metric_name, labels, value, timestamp: timestamp)
+    TimelessMetrics.flush(@store)
   end
 
   describe "chronological ordering" do

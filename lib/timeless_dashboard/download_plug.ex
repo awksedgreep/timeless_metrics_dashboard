@@ -22,7 +22,7 @@ defmodule TimelessDashboard.DownloadPlug do
   def call(%{path_info: ["backups", name]} = conn, %{store: store}) do
     # Sanitize: no slashes, no dots-only, no path traversal
     if name =~ ~r/^[a-zA-Z0-9_\-]+$/ do
-      info = Timeless.info(store)
+      info = TimelessMetrics.info(store)
       data_dir = Path.dirname(info.db_path)
       backup_path = Path.join([data_dir, "backups", name])
 

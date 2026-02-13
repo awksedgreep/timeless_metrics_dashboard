@@ -19,7 +19,7 @@ defmodule TimelessDashboard.MixProject do
 
   defp deps do
     [
-      {:timeless, path: "../timeless"},
+      {:timeless_metrics, path: "../timeless_metrics"},
       {:telemetry, "~> 1.0"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0", optional: true},

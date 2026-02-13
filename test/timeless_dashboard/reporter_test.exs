@@ -14,7 +14,7 @@ defmodule TimelessDashboard.ReporterTest do
 
     File.mkdir_p!(data_dir)
 
-    start_supervised!({Timeless, name: @store, data_dir: data_dir})
+    start_supervised!({TimelessMetrics, name: @store, data_dir: data_dir})
 
     on_exit(fn ->
       File.rm_rf!(data_dir)
@@ -41,9 +41,9 @@ defmodule TimelessDashboard.ReporterTest do
       )
 
       TimelessDashboard.Reporter.flush(:reporter_basic)
-      Timeless.flush(@store)
+      TimelessMetrics.flush(@store)
 
-      {:ok, metrics_list} = Timeless.list_metrics(@store)
+      {:ok, metrics_list} = TimelessMetrics.list_metrics(@store)
       assert "telemetry.test.request.duration" in metrics_list
     end
 
@@ -63,9 +63,9 @@ defmodule TimelessDashboard.ReporterTest do
 
       :telemetry.execute([:test, :tagged], %{count: 1}, %{method: "GET", status: 200})
       TimelessDashboard.Reporter.flush(:reporter_tags)
-      Timeless.flush(@store)
+      TimelessMetrics.flush(@store)
 
-      {:ok, series} = Timeless.list_series(@store, "telemetry.test.tagged.count")
+      {:ok, series} = TimelessMetrics.list_series(@store, "telemetry.test.tagged.count")
       assert length(series) == 1
       labels = hd(series).labels
       assert labels["method"] == "GET"
@@ -90,9 +90,9 @@ defmodule TimelessDashboard.ReporterTest do
       :telemetry.execute([:test, :filtered], %{count: 1}, %{keep: false})
       :telemetry.execute([:test, :filtered], %{count: 1}, %{keep: true})
       TimelessDashboard.Reporter.flush(:reporter_filter)
-      Timeless.flush(@store)
+      TimelessMetrics.flush(@store)
 
-      {:ok, results} = Timeless.query(@store, "telemetry.test.filtered.count", %{})
+      {:ok, results} = TimelessMetrics.query(@store, "telemetry.test.filtered.count", %{})
       assert length(results) == 1
     end
   end
@@ -111,9 +111,9 @@ defmodule TimelessDashboard.ReporterTest do
       native_100ms = System.convert_time_unit(100, :millisecond, :native)
       :telemetry.execute([:test, :convert], %{duration: native_100ms}, %{})
       TimelessDashboard.Reporter.flush(:reporter_convert)
-      Timeless.flush(@store)
+      TimelessMetrics.flush(@store)
 
-      {:ok, points} = Timeless.query(@store, "telemetry.test.convert.duration", %{})
+      {:ok, points} = TimelessMetrics.query(@store, "telemetry.test.convert.duration", %{})
       assert length(points) == 1
       [{_ts, value}] = points
       # Should be ~100ms (allow for rounding)
@@ -134,7 +134,7 @@ defmodule TimelessDashboard.ReporterTest do
          store: @store, metrics: metrics, flush_interval: 0, name: :reporter_meta}
       )
 
-      {:ok, metadata} = Timeless.get_metadata(@store, "telemetry.test.meta.gauge")
+      {:ok, metadata} = TimelessMetrics.get_metadata(@store, "telemetry.test.meta.gauge")
       assert metadata.type == :gauge
       assert metadata.description == "A test gauge"
     end
@@ -183,9 +183,9 @@ defmodule TimelessDashboard.ReporterTest do
 
       :telemetry.execute([:test, :prefix], %{count: 1}, %{})
       TimelessDashboard.Reporter.flush(:reporter_prefix)
-      Timeless.flush(@store)
+      TimelessMetrics.flush(@store)
 
-      {:ok, metrics_list} = Timeless.list_metrics(@store)
+      {:ok, metrics_list} = TimelessMetrics.list_metrics(@store)
       assert "custom.test.prefix.count" in metrics_list
       refute "telemetry.test.prefix.count" in metrics_list
     end
@@ -205,9 +205,9 @@ defmodule TimelessDashboard.ReporterTest do
 
       :telemetry.execute([:test, :multi], %{duration: 42}, %{})
       TimelessDashboard.Reporter.flush(:reporter_multi)
-      Timeless.flush(@store)
+      TimelessMetrics.flush(@store)
 
-      {:ok, metrics_list} = Timeless.list_metrics(@store)
+      {:ok, metrics_list} = TimelessMetrics.list_metrics(@store)
       # Both summary and counter produce the same metric name but are separate writes
       assert "telemetry.test.multi.duration" in metrics_list
     end
