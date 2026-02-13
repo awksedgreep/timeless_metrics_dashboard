@@ -67,14 +67,23 @@ defmodule TimelessDashboard do
     # Query all label combinations for this metric
     case Timeless.query_multi(store, metric_name, %{}, from: from, to: to) do
       {:ok, series_list} ->
-        Enum.flat_map(series_list, fn %{labels: labels, points: points} ->
+        series_list
+        |> Enum.flat_map(fn %{labels: labels, points: points} ->
           label = build_label(metric, labels)
-
-          Enum.map(points, fn {timestamp, value} ->
+          Enum.map(points, fn {timestamp, value} -> {label, timestamp, value} end)
+        end)
+        # Group by label, then average overlapping timestamps within each group.
+        # Multiple Timeless series can collapse to the same label when the
+        # LiveDashboard metric has fewer tags than the reporter stored.
+        |> Enum.group_by(&elem(&1, 0))
+        |> Enum.flat_map(fn {label, points} ->
+          points
+          |> Enum.group_by(&elem(&1, 1), &elem(&1, 2))
+          |> Enum.sort_by(&elem(&1, 0))
+          |> Enum.map(fn {timestamp, values} ->
             %{
               label: label,
-              measurement: value,
-              # LiveDashboard expects microseconds
+              measurement: Enum.sum(values) / length(values),
               time: timestamp * 1_000_000
             }
           end)
