@@ -52,11 +52,11 @@ defmodule TimelessMetricsDashboard.Page do
 
     try do
       info = TimelessMetrics.info(store)
-      {:ok, "Timeless (#{info.series_count})"}
+      {:ok, "TimelessMetrics (#{info.series_count})"}
     rescue
-      _ -> {:disabled, "Timeless", "Store not running"}
+      _ -> {:disabled, "TimelessMetrics", "Store not running"}
     catch
-      :exit, _ -> {:disabled, "Timeless", "Store not running"}
+      :exit, _ -> {:disabled, "TimelessMetrics", "Store not running"}
     end
   end
 

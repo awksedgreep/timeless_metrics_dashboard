@@ -49,7 +49,7 @@ defmodule TimelessMetricsDashboard.PageTest do
 
     test "returns disabled when store not running" do
       {:ok, session} = Page.init(store: :nonexistent_store)
-      assert {:disabled, "Timeless", "Store not running"} = Page.menu_link(session, %{})
+      assert {:disabled, "TimelessMetrics", "Store not running"} = Page.menu_link(session, %{})
     end
 
     test "shows correct count after writing data" do
