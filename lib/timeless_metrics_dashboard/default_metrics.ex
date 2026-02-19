@@ -230,6 +230,18 @@ defmodule TimelessMetricsDashboard.DefaultMetrics do
     ]
   end
 
+  @doc """
+  All non-repo-specific metrics combined: VM, Phoenix, LiveView, and Timeless internals.
+
+  This is the default when no `:metrics` option is passed to `TimelessMetricsDashboard`.
+  """
+  def metrics do
+    vm_metrics() ++
+      phoenix_metrics() ++
+      live_view_metrics() ++
+      timeless_metrics()
+  end
+
   # --- Tag value extractors ---
 
   defp phoenix_tag_values(%{conn: conn}) do

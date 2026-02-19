@@ -24,7 +24,25 @@ defmodule TimelessMetricsDashboard do
         additional_pages: [timeless: {TimelessMetricsDashboard.Page, store: :metrics}]
   """
 
-  defdelegate child_spec(opts), to: TimelessMetricsDashboard.Reporter
+  @doc """
+  Returns a child spec that starts the TimelessMetrics store + telemetry reporter.
+
+  ## Options
+
+    * `:name` — store name (default: `:timeless_metrics`)
+    * `:data_dir` — data directory (default: `"priv/timeless_metrics"`)
+    * `:metrics` — `Telemetry.Metrics` list (default: `DefaultMetrics.all()`)
+    * `:reporter` — extra opts forwarded to Reporter (`:flush_interval`, `:prefix`)
+  """
+  def child_spec(opts) do
+    name = Keyword.get(opts, :name, :timeless_metrics)
+
+    %{
+      id: {__MODULE__, name},
+      start: {TimelessMetricsDashboard.Supervisor, :start_link, [opts]},
+      type: :supervisor
+    }
+  end
 
   @doc """
   Callback for LiveDashboard's `metrics_history` option.
