@@ -1,7 +1,7 @@
-defmodule TimelessDashboard.DefaultMetricsTest do
+defmodule TimelessMetricsDashboard.DefaultMetricsTest do
   use ExUnit.Case, async: true
 
-  alias TimelessDashboard.DefaultMetrics
+  alias TimelessMetricsDashboard.DefaultMetrics
 
   describe "vm_metrics/0" do
     test "returns non-empty list of valid metrics" do

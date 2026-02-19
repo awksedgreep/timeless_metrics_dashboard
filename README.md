@@ -1,8 +1,8 @@
-# TimelessDashboard
+# TimelessMetricsDashboard
 
 Telemetry reporter and [LiveDashboard](https://github.com/phoenixframework/phoenix_live_dashboard) page plugin for [Timeless](https://github.com/awksedgreep/timeless).
 
-Phoenix LiveDashboard ships real-time metrics that reset on every page load. TimelessDashboard bridges the gap: a telemetry reporter captures events into Timeless, and the dashboard page gives you persistent historical charts, alert visibility, backup controls, and compression stats.
+Phoenix LiveDashboard ships real-time metrics that reset on every page load. TimelessMetricsDashboard bridges the gap: a telemetry reporter captures events into Timeless, and the dashboard page gives you persistent historical charts, alert visibility, backup controls, and compression stats.
 
 Drop it in and your LiveDashboard gets real trending for free.
 
@@ -14,7 +14,7 @@ Add to your `mix.exs`:
 def deps do
   [
     {:timeless, github: "awksedgreep/timeless"},
-    {:timeless_dashboard, github: "awksedgreep/timeless_dashboard"}
+    {:timeless_metrics_dashboard, github: "awksedgreep/timeless_metrics_dashboard"}
   ]
 end
 ```
@@ -29,13 +29,13 @@ Add the reporter to your supervision tree. It captures `Telemetry.Metrics` event
 # application.ex
 children = [
   {Timeless, name: :metrics, data_dir: "/var/lib/metrics"},
-  {TimelessDashboard,
+  {TimelessMetricsDashboard,
     store: :metrics,
     metrics:
-      TimelessDashboard.DefaultMetrics.vm_metrics() ++
-      TimelessDashboard.DefaultMetrics.phoenix_metrics() ++
-      TimelessDashboard.DefaultMetrics.ecto_metrics("my_app.repo") ++
-      TimelessDashboard.DefaultMetrics.live_view_metrics()}
+      TimelessMetricsDashboard.DefaultMetrics.vm_metrics() ++
+      TimelessMetricsDashboard.DefaultMetrics.phoenix_metrics() ++
+      TimelessMetricsDashboard.DefaultMetrics.ecto_metrics("my_app.repo") ++
+      TimelessMetricsDashboard.DefaultMetrics.live_view_metrics()}
 ]
 ```
 
@@ -49,7 +49,7 @@ Add the page to your router:
 # router.ex
 live_dashboard "/dashboard",
   additional_pages: [
-    timeless: {TimelessDashboard.Page, store: :metrics}
+    timeless: {TimelessMetricsDashboard.Page, store: :metrics}
   ]
 ```
 
@@ -59,11 +59,11 @@ To enable download links on the Storage tab, mount the download plug and pass th
 
 ```elixir
 # router.ex
-forward "/timeless/downloads", TimelessDashboard.DownloadPlug, store: :metrics
+forward "/timeless/downloads", TimelessMetricsDashboard.DownloadPlug, store: :metrics
 
 live_dashboard "/dashboard",
   additional_pages: [
-    timeless: {TimelessDashboard.Page,
+    timeless: {TimelessMetricsDashboard.Page,
       store: :metrics,
       download_path: "/timeless/downloads"}
   ]
@@ -118,7 +118,7 @@ Database path, size, and retention settings. Create and download backups, flush 
 | `:metrics` | `[]` | List of `Telemetry.Metrics` structs |
 | `:flush_interval` | `10_000` | Milliseconds between batch flushes |
 | `:prefix` | `"telemetry"` | Metric name prefix |
-| `:name` | `TimelessDashboard.Reporter` | GenServer name |
+| `:name` | `TimelessMetricsDashboard.Reporter` | GenServer name |
 
 ## Page Options
 
@@ -133,10 +133,10 @@ Database path, size, and retention settings. Create and download backups, flush 
 
 Pre-built metric definitions for common events:
 
-- **`TimelessDashboard.DefaultMetrics.vm_metrics/0`** -- Memory, run queues, system counts. Requires `:telemetry_poller`.
-- **`TimelessDashboard.DefaultMetrics.phoenix_metrics/0`** -- Endpoint and router dispatch duration/count, tagged by method/route/status.
-- **`TimelessDashboard.DefaultMetrics.ecto_metrics/1`** -- Query total_time and queue_time, tagged by source table. Pass the repo event prefix (e.g., `"my_app.repo"`).
-- **`TimelessDashboard.DefaultMetrics.live_view_metrics/0`** -- Mount and handle_event duration, tagged by view/event.
+- **`TimelessMetricsDashboard.DefaultMetrics.vm_metrics/0`** -- Memory, run queues, system counts. Requires `:telemetry_poller`.
+- **`TimelessMetricsDashboard.DefaultMetrics.phoenix_metrics/0`** -- Endpoint and router dispatch duration/count, tagged by method/route/status.
+- **`TimelessMetricsDashboard.DefaultMetrics.ecto_metrics/1`** -- Query total_time and queue_time, tagged by source table. Pass the repo event prefix (e.g., `"my_app.repo"`).
+- **`TimelessMetricsDashboard.DefaultMetrics.live_view_metrics/0`** -- Mount and handle_event duration, tagged by view/event.
 
 Mix and match with your own custom `Telemetry.Metrics` definitions.
 
@@ -153,7 +153,7 @@ The reporter handler runs in the **caller's process**, not the GenServer. All ho
 Run the included demo to see everything in action:
 
 ```bash
-cd timeless_dashboard
+cd timeless_metrics_dashboard
 mix run examples/demo.exs
 # Open http://localhost:4000/dashboard/timeless
 ```

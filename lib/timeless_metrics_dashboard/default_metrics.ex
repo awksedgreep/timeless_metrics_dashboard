@@ -1,4 +1,4 @@
-defmodule TimelessDashboard.DefaultMetrics do
+defmodule TimelessMetricsDashboard.DefaultMetrics do
   @moduledoc """
   Pre-built `Telemetry.Metrics` definitions for common BEAM/Phoenix/Ecto/Timeless events.
 
@@ -8,12 +8,12 @@ defmodule TimelessDashboard.DefaultMetrics do
   ## Example
 
       metrics =
-        TimelessDashboard.DefaultMetrics.vm_metrics() ++
-        TimelessDashboard.DefaultMetrics.phoenix_metrics() ++
-        TimelessDashboard.DefaultMetrics.ecto_metrics("my_app.repo") ++
-        TimelessDashboard.DefaultMetrics.timeless_metrics()
+        TimelessMetricsDashboard.DefaultMetrics.vm_metrics() ++
+        TimelessMetricsDashboard.DefaultMetrics.phoenix_metrics() ++
+        TimelessMetricsDashboard.DefaultMetrics.ecto_metrics("my_app.repo") ++
+        TimelessMetricsDashboard.DefaultMetrics.timeless_metrics()
 
-      {TimelessDashboard, store: :metrics, metrics: metrics}
+      {TimelessMetricsDashboard, store: :metrics, metrics: metrics}
   """
 
   import Telemetry.Metrics

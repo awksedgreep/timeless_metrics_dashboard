@@ -1,4 +1,4 @@
-defmodule TimelessDashboard do
+defmodule TimelessMetricsDashboard do
   @moduledoc """
   Telemetry reporter and LiveDashboard page for TimelessMetrics.
 
@@ -10,21 +10,21 @@ defmodule TimelessDashboard do
 
       children = [
         {Timeless, name: :metrics, data_dir: "/var/lib/metrics"},
-        {TimelessDashboard,
+        {TimelessMetricsDashboard,
           store: :metrics,
           metrics:
-            TimelessDashboard.DefaultMetrics.vm_metrics() ++
-            TimelessDashboard.DefaultMetrics.phoenix_metrics()}
+            TimelessMetricsDashboard.DefaultMetrics.vm_metrics() ++
+            TimelessMetricsDashboard.DefaultMetrics.phoenix_metrics()}
       ]
 
   ## LiveDashboard Page
 
       # In your router:
       live_dashboard "/dashboard",
-        additional_pages: [timeless: {TimelessDashboard.Page, store: :metrics}]
+        additional_pages: [timeless: {TimelessMetricsDashboard.Page, store: :metrics}]
   """
 
-  defdelegate child_spec(opts), to: TimelessDashboard.Reporter
+  defdelegate child_spec(opts), to: TimelessMetricsDashboard.Reporter
 
   @doc """
   Callback for LiveDashboard's `metrics_history` option.
@@ -37,18 +37,18 @@ defmodule TimelessDashboard do
 
       live_dashboard "/dashboard",
         metrics: MyAppWeb.Telemetry,
-        metrics_history: {TimelessDashboard, :metrics_history, [:my_store]}
+        metrics_history: {TimelessMetricsDashboard, :metrics_history, [:my_store]}
 
   The store atom is appended by your MFA config; LiveDashboard prepends
   the metric struct, so the call becomes:
 
-      TimelessDashboard.metrics_history(metric, :my_store)
+      TimelessMetricsDashboard.metrics_history(metric, :my_store)
 
   ## Options
 
   A keyword list can be passed as a third element for additional config:
 
-      metrics_history: {TimelessDashboard, :metrics_history, [:my_store, [prefix: "app"]]}
+      metrics_history: {TimelessMetricsDashboard, :metrics_history, [:my_store, [prefix: "app"]]}
 
   Supported options:
 

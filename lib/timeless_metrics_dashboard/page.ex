@@ -1,4 +1,4 @@
-defmodule TimelessDashboard.Page do
+defmodule TimelessMetricsDashboard.Page do
   @moduledoc """
   LiveDashboard page plugin for TimelessMetrics.
 
@@ -8,12 +8,12 @@ defmodule TimelessDashboard.Page do
 
       # In your router:
       live_dashboard "/dashboard",
-        additional_pages: [timeless: {TimelessDashboard.Page, store: :metrics}]
+        additional_pages: [timeless: {TimelessMetricsDashboard.Page, store: :metrics}]
   """
 
   use Phoenix.LiveDashboard.PageBuilder, refresher?: true
 
-  import TimelessDashboard.Components
+  import TimelessMetricsDashboard.Components
 
   @time_ranges %{
     "15m" => 900,

@@ -1,4 +1,4 @@
-defmodule TimelessDashboard.Reporter do
+defmodule TimelessMetricsDashboard.Reporter do
   @moduledoc """
   Telemetry reporter that writes `Telemetry.Metrics` events into a Timeless store.
 
@@ -12,7 +12,7 @@ defmodule TimelessDashboard.Reporter do
     * `:metrics` — list of `Telemetry.Metrics` structs (default: `[]`)
     * `:flush_interval` — milliseconds between batch flushes (default: `10_000`)
     * `:prefix` — metric name prefix (default: `"telemetry"`)
-    * `:name` — GenServer name (default: `TimelessDashboard.Reporter`)
+    * `:name` — GenServer name (default: `TimelessMetricsDashboard.Reporter`)
   """
 
   use GenServer

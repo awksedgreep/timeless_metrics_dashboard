@@ -1,4 +1,4 @@
-defmodule TimelessDashboard.MetricsHistoryTest do
+defmodule TimelessMetricsDashboard.MetricsHistoryTest do
   use ExUnit.Case, async: false
 
   import Telemetry.Metrics
@@ -40,7 +40,7 @@ defmodule TimelessDashboard.MetricsHistoryTest do
 
       # Metric with no tags — all series collapse to label: nil
       metric = summary("test.query.duration")
-      result = TimelessDashboard.metrics_history(metric, @store)
+      result = TimelessMetricsDashboard.metrics_history(metric, @store)
 
       times = Enum.map(result, & &1.time)
       assert times == Enum.sort(times), "Points must be sorted chronologically"
@@ -54,7 +54,7 @@ defmodule TimelessDashboard.MetricsHistoryTest do
       write_and_flush("telemetry.test.single.value", %{}, 3.0, now - 1)
 
       metric = summary("test.single.value")
-      result = TimelessDashboard.metrics_history(metric, @store)
+      result = TimelessMetricsDashboard.metrics_history(metric, @store)
 
       times = Enum.map(result, & &1.time)
       assert times == Enum.sort(times)
@@ -71,7 +71,7 @@ defmodule TimelessDashboard.MetricsHistoryTest do
       write_and_flush("telemetry.test.overlap.value", %{"source" => "b"}, 200.0, now)
 
       metric = summary("test.overlap.value")
-      result = TimelessDashboard.metrics_history(metric, @store)
+      result = TimelessMetricsDashboard.metrics_history(metric, @store)
 
       # Should produce one point (averaged), not two
       assert length(result) == 1
@@ -88,7 +88,7 @@ defmodule TimelessDashboard.MetricsHistoryTest do
 
       # Metric WITH tags — each series keeps its own label
       metric = summary("test.tagged.value", tags: [:method], tag_values: & &1)
-      result = TimelessDashboard.metrics_history(metric, @store)
+      result = TimelessMetricsDashboard.metrics_history(metric, @store)
 
       # Should produce two separate points with different labels
       assert length(result) == 2
@@ -106,7 +106,7 @@ defmodule TimelessDashboard.MetricsHistoryTest do
       end
 
       metric = summary("test.multi.overlap")
-      result = TimelessDashboard.metrics_history(metric, @store)
+      result = TimelessMetricsDashboard.metrics_history(metric, @store)
 
       assert length(result) == 2
 
@@ -124,7 +124,7 @@ defmodule TimelessDashboard.MetricsHistoryTest do
       write_and_flush("telemetry.test.time.format", %{}, 1.0, now)
 
       metric = summary("test.time.format")
-      [point] = TimelessDashboard.metrics_history(metric, @store)
+      [point] = TimelessMetricsDashboard.metrics_history(metric, @store)
 
       assert point.time == now * 1_000_000
     end
@@ -133,7 +133,7 @@ defmodule TimelessDashboard.MetricsHistoryTest do
   describe "empty data" do
     test "returns empty list when no data exists" do
       metric = summary("test.nonexistent.metric")
-      assert TimelessDashboard.metrics_history(metric, @store) == []
+      assert TimelessMetricsDashboard.metrics_history(metric, @store) == []
     end
   end
 end

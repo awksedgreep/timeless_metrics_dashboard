@@ -1,7 +1,7 @@
-defmodule TimelessDashboard.PageTest do
+defmodule TimelessMetricsDashboard.PageTest do
   use ExUnit.Case, async: false
 
-  alias TimelessDashboard.Page
+  alias TimelessMetricsDashboard.Page
 
   @store :page_test_store
 

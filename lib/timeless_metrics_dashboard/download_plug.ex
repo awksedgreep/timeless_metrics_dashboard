@@ -1,10 +1,10 @@
-defmodule TimelessDashboard.DownloadPlug do
+defmodule TimelessMetricsDashboard.DownloadPlug do
   @moduledoc """
   Plug that serves Timeless backup downloads as tar.gz archives.
 
   Mount in your router alongside the LiveDashboard page:
 
-      forward "/timeless/downloads", TimelessDashboard.DownloadPlug, store: :metrics
+      forward "/timeless/downloads", TimelessMetricsDashboard.DownloadPlug, store: :metrics
 
   Then backups listed on the Storage tab will have download links.
   """
@@ -37,12 +37,12 @@ defmodule TimelessDashboard.DownloadPlug do
   rescue
     e ->
       require Logger
-      Logger.error("TimelessDashboard.DownloadPlug: #{Exception.message(e)}")
+      Logger.error("TimelessMetricsDashboard.DownloadPlug: #{Exception.message(e)}")
       conn |> send_resp(500, "Download failed: #{Exception.message(e)}") |> halt()
   catch
     :exit, reason ->
       require Logger
-      Logger.error("TimelessDashboard.DownloadPlug: #{inspect(reason)}")
+      Logger.error("TimelessMetricsDashboard.DownloadPlug: #{inspect(reason)}")
       conn |> send_resp(500, "Download failed: store not available") |> halt()
   end
 

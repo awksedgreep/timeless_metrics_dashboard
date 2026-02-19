@@ -1,9 +1,9 @@
-defmodule TimelessDashboard.MixProject do
+defmodule TimelessMetricsDashboard.MixProject do
   use Mix.Project
 
   def project do
     [
-      app: :timeless_dashboard,
+      app: :timeless_metrics_dashboard,
       version: "0.1.1",
       elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,

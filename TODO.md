@@ -1,4 +1,4 @@
-# TimelessDashboard TODO
+# TimelessMetricsDashboard TODO
 
 ## Done
 - [x] Project scaffold, mix.exs, deps
@@ -23,7 +23,7 @@
 ## Next Up
 
 ### Git & Repo
-- [ ] Push to github.com/awksedgreep/timeless_dashboard
+- [ ] Push to github.com/awksedgreep/timeless_metrics_dashboard
 - [ ] Add to timeless README as companion project
 
 ### Metrics Tab — Scale

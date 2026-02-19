@@ -1,4 +1,4 @@
-defmodule TimelessDashboard.ReporterTest do
+defmodule TimelessMetricsDashboard.ReporterTest do
   use ExUnit.Case, async: false
 
   import Telemetry.Metrics
@@ -30,7 +30,7 @@ defmodule TimelessDashboard.ReporterTest do
       ]
 
       start_supervised!(
-        {TimelessDashboard.Reporter,
+        {TimelessMetricsDashboard.Reporter,
          store: @store, metrics: metrics, flush_interval: 0, name: :reporter_basic}
       )
 
@@ -40,7 +40,7 @@ defmodule TimelessDashboard.ReporterTest do
         %{}
       )
 
-      TimelessDashboard.Reporter.flush(:reporter_basic)
+      TimelessMetricsDashboard.Reporter.flush(:reporter_basic)
       TimelessMetrics.flush(@store)
 
       {:ok, metrics_list} = TimelessMetrics.list_metrics(@store)
@@ -57,12 +57,12 @@ defmodule TimelessDashboard.ReporterTest do
       ]
 
       start_supervised!(
-        {TimelessDashboard.Reporter,
+        {TimelessMetricsDashboard.Reporter,
          store: @store, metrics: metrics, flush_interval: 0, name: :reporter_tags}
       )
 
       :telemetry.execute([:test, :tagged], %{count: 1}, %{method: "GET", status: 200})
-      TimelessDashboard.Reporter.flush(:reporter_tags)
+      TimelessMetricsDashboard.Reporter.flush(:reporter_tags)
       TimelessMetrics.flush(@store)
 
       {:ok, series} = TimelessMetrics.list_series(@store, "telemetry.test.tagged.count")
@@ -83,13 +83,13 @@ defmodule TimelessDashboard.ReporterTest do
       ]
 
       start_supervised!(
-        {TimelessDashboard.Reporter,
+        {TimelessMetricsDashboard.Reporter,
          store: @store, metrics: metrics, flush_interval: 0, name: :reporter_filter}
       )
 
       :telemetry.execute([:test, :filtered], %{count: 1}, %{keep: false})
       :telemetry.execute([:test, :filtered], %{count: 1}, %{keep: true})
-      TimelessDashboard.Reporter.flush(:reporter_filter)
+      TimelessMetricsDashboard.Reporter.flush(:reporter_filter)
       TimelessMetrics.flush(@store)
 
       {:ok, results} = TimelessMetrics.query(@store, "telemetry.test.filtered.count", %{})
@@ -104,13 +104,13 @@ defmodule TimelessDashboard.ReporterTest do
       ]
 
       start_supervised!(
-        {TimelessDashboard.Reporter,
+        {TimelessMetricsDashboard.Reporter,
          store: @store, metrics: metrics, flush_interval: 0, name: :reporter_convert}
       )
 
       native_100ms = System.convert_time_unit(100, :millisecond, :native)
       :telemetry.execute([:test, :convert], %{duration: native_100ms}, %{})
-      TimelessDashboard.Reporter.flush(:reporter_convert)
+      TimelessMetricsDashboard.Reporter.flush(:reporter_convert)
       TimelessMetrics.flush(@store)
 
       {:ok, points} = TimelessMetrics.query(@store, "telemetry.test.convert.duration", %{})
@@ -130,7 +130,7 @@ defmodule TimelessDashboard.ReporterTest do
       ]
 
       start_supervised!(
-        {TimelessDashboard.Reporter,
+        {TimelessMetricsDashboard.Reporter,
          store: @store, metrics: metrics, flush_interval: 0, name: :reporter_meta}
       )
 
@@ -147,7 +147,7 @@ defmodule TimelessDashboard.ReporterTest do
       ]
 
       start_supervised!(
-        {TimelessDashboard.Reporter,
+        {TimelessMetricsDashboard.Reporter,
          store: @store, metrics: metrics, flush_interval: 0, name: :reporter_lifecycle}
       )
 
@@ -155,13 +155,13 @@ defmodule TimelessDashboard.ReporterTest do
       handlers = :telemetry.list_handlers([:test, :lifecycle])
       assert length(handlers) > 0
 
-      stop_supervised!({TimelessDashboard.Reporter, :reporter_lifecycle})
+      stop_supervised!({TimelessMetricsDashboard.Reporter, :reporter_lifecycle})
 
       # Handler should be detached
       handlers = :telemetry.list_handlers([:test, :lifecycle])
 
       refute Enum.any?(handlers, fn h ->
-               h.id == {TimelessDashboard.Reporter, "telemetry", [:test, :lifecycle]}
+               h.id == {TimelessMetricsDashboard.Reporter, "telemetry", [:test, :lifecycle]}
              end)
     end
   end
@@ -173,7 +173,7 @@ defmodule TimelessDashboard.ReporterTest do
       ]
 
       start_supervised!(
-        {TimelessDashboard.Reporter,
+        {TimelessMetricsDashboard.Reporter,
          store: @store,
          metrics: metrics,
          flush_interval: 0,
@@ -182,7 +182,7 @@ defmodule TimelessDashboard.ReporterTest do
       )
 
       :telemetry.execute([:test, :prefix], %{count: 1}, %{})
-      TimelessDashboard.Reporter.flush(:reporter_prefix)
+      TimelessMetricsDashboard.Reporter.flush(:reporter_prefix)
       TimelessMetrics.flush(@store)
 
       {:ok, metrics_list} = TimelessMetrics.list_metrics(@store)
@@ -199,12 +199,12 @@ defmodule TimelessDashboard.ReporterTest do
       ]
 
       start_supervised!(
-        {TimelessDashboard.Reporter,
+        {TimelessMetricsDashboard.Reporter,
          store: @store, metrics: metrics, flush_interval: 0, name: :reporter_multi}
       )
 
       :telemetry.execute([:test, :multi], %{duration: 42}, %{})
-      TimelessDashboard.Reporter.flush(:reporter_multi)
+      TimelessMetricsDashboard.Reporter.flush(:reporter_multi)
       TimelessMetrics.flush(@store)
 
       {:ok, metrics_list} = TimelessMetrics.list_metrics(@store)

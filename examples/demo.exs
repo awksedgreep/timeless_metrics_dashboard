@@ -1,4 +1,4 @@
-# Minimal Phoenix app to test TimelessDashboard.
+# Minimal Phoenix app to test TimelessMetricsDashboard.
 #
 # Run:  mix run examples/demo.exs
 # Open: http://localhost:4000/dashboard/timeless
@@ -10,10 +10,10 @@ Logger.configure(level: :info)
 
 defmodule Demo.Telemetry do
   def metrics do
-    TimelessDashboard.DefaultMetrics.vm_metrics() ++
-      TimelessDashboard.DefaultMetrics.phoenix_metrics() ++
-      TimelessDashboard.DefaultMetrics.live_view_metrics() ++
-      TimelessDashboard.DefaultMetrics.timeless_metrics()
+    TimelessMetricsDashboard.DefaultMetrics.vm_metrics() ++
+      TimelessMetricsDashboard.DefaultMetrics.phoenix_metrics() ++
+      TimelessMetricsDashboard.DefaultMetrics.live_view_metrics() ++
+      TimelessMetricsDashboard.DefaultMetrics.timeless_metrics()
   end
 end
 
@@ -29,16 +29,16 @@ defmodule Demo.Router do
     plug :put_secure_browser_headers
   end
 
-  forward "/timeless/downloads", TimelessDashboard.DownloadPlug, store: :demo
+  forward "/timeless/downloads", TimelessMetricsDashboard.DownloadPlug, store: :demo
 
   scope "/" do
     pipe_through :browser
 
     live_dashboard "/dashboard",
       metrics: Demo.Telemetry,
-      metrics_history: {TimelessDashboard, :metrics_history, [:demo]},
+      metrics_history: {TimelessMetricsDashboard, :metrics_history, [:demo]},
       additional_pages: [
-        timeless: {TimelessDashboard.Page, store: :demo, download_path: "/timeless/downloads"}
+        timeless: {TimelessMetricsDashboard.Page, store: :demo, download_path: "/timeless/downloads"}
       ]
   end
 end
@@ -48,7 +48,7 @@ defmodule Demo.ErrorView do
 end
 
 defmodule Demo.Endpoint do
-  use Phoenix.Endpoint, otp_app: :timeless_dashboard
+  use Phoenix.Endpoint, otp_app: :timeless_metrics_dashboard
 
   @session_options [
     store: :cookie,
@@ -76,7 +76,7 @@ File.mkdir_p!(data_dir)
 IO.puts("Data dir: #{data_dir}")
 
 # Configure endpoint
-Application.put_env(:timeless_dashboard, Demo.Endpoint,
+Application.put_env(:timeless_metrics_dashboard, Demo.Endpoint,
   adapter: Bandit.PhoenixAdapter,
   http: [port: 4000],
   url: [host: "localhost"],
@@ -101,9 +101,9 @@ Application.put_env(:timeless_dashboard, Demo.Endpoint,
   strategy: :one_for_one
 )
 
-# Start TimelessDashboard reporter — uses same metrics as LiveDashboard
+# Start TimelessMetricsDashboard reporter — uses same metrics as LiveDashboard
 # telemetry_poller fires every 2s by default, reporter flushes every 5s
-{:ok, _} = TimelessDashboard.Reporter.start_link(
+{:ok, _} = TimelessMetricsDashboard.Reporter.start_link(
   store: :demo,
   metrics: Demo.Telemetry.metrics(),
   flush_interval: 5_000,
@@ -116,7 +116,7 @@ Application.put_env(:timeless_dashboard, Demo.Endpoint,
 IO.puts("""
 
 ========================================
-  TimelessDashboard Demo
+  TimelessMetricsDashboard Demo
   http://localhost:4000/dashboard/timeless
 ========================================
 """)

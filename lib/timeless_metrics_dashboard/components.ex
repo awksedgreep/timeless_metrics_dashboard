@@ -1,4 +1,4 @@
-defmodule TimelessDashboard.Components do
+defmodule TimelessMetricsDashboard.Components do
   @moduledoc false
 
   use Phoenix.Component
