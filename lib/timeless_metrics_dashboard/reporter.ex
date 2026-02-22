@@ -3,8 +3,8 @@ defmodule TimelessMetricsDashboard.Reporter do
   Telemetry reporter that writes `Telemetry.Metrics` events into a Timeless store.
 
   The handler callback runs in the **caller's process**, so all hot-path
-  operations are lock-free ETS reads/writes. A periodic flush drains the
-  buffer into Timeless via `write_batch_resolved/2`.
+  operations are lock-free ETS writes. A periodic flush drains the
+  buffer into Timeless via `write_batch/2`.
 
   ## Options
 
@@ -56,8 +56,7 @@ defmodule TimelessMetricsDashboard.Reporter do
     flush_interval = Keyword.get(opts, :flush_interval, @default_flush_interval)
     prefix = Keyword.get(opts, :prefix, @default_prefix)
 
-    # ETS tables for lock-free handler path
-    cache = :ets.new(:timeless_reporter_cache, [:set, :public, read_concurrency: true])
+    # ETS buffer for lock-free handler path
     buffer = :ets.new(:timeless_reporter_buffer, [:set, :public, write_concurrency: true])
 
     # Group metrics by event name → attach one handler per distinct event
@@ -73,9 +72,7 @@ defmodule TimelessMetricsDashboard.Reporter do
           &__MODULE__.handle_event/4,
           %{
             metrics: event_metrics,
-            store: store,
             prefix: prefix,
-            cache: cache,
             buffer: buffer
           }
         )
@@ -98,7 +95,6 @@ defmodule TimelessMetricsDashboard.Reporter do
        prefix: prefix,
        flush_interval: flush_interval,
        handler_ids: handler_ids,
-       cache: cache,
        buffer: buffer
      }}
   end
@@ -135,7 +131,7 @@ defmodule TimelessMetricsDashboard.Reporter do
 
   @doc false
   def handle_event(_event_name, measurements, metadata, config) do
-    %{metrics: metrics, store: store, prefix: prefix, cache: cache, buffer: buffer} = config
+    %{metrics: metrics, prefix: prefix, buffer: buffer} = config
 
     Enum.each(metrics, fn metric ->
       if keep?(metric, metadata) do
@@ -147,10 +143,9 @@ defmodule TimelessMetricsDashboard.Reporter do
             value = convert_unit(value, metric.unit)
             labels = extract_labels(metric, metadata)
             metric_name = build_metric_name(prefix, metric)
-            series_id = resolve_cached(cache, store, metric_name, labels)
             timestamp = System.os_time(:second)
-            key = {series_id, :erlang.unique_integer()}
-            :ets.insert(buffer, {key, {timestamp, value}})
+            key = {metric_name, :erlang.unique_integer()}
+            :ets.insert(buffer, {key, {labels, timestamp, value}})
         end
       end
     end)
@@ -194,31 +189,17 @@ defmodule TimelessMetricsDashboard.Reporter do
     "#{prefix}.#{Enum.join(name_parts, ".")}"
   end
 
-  defp resolve_cached(cache, store, metric_name, labels) do
-    key = {metric_name, labels}
-
-    case :ets.lookup(cache, key) do
-      [{^key, series_id}] ->
-        series_id
-
-      [] ->
-        series_id = TimelessMetrics.resolve_series(store, metric_name, labels)
-        :ets.insert(cache, {key, series_id})
-        series_id
-    end
-  end
-
   defp drain_buffer(state) do
     entries = :ets.tab2list(state.buffer)
     :ets.delete_all_objects(state.buffer)
 
     if entries != [] do
       batch =
-        Enum.map(entries, fn {{series_id, _unique}, {timestamp, value}} ->
-          {series_id, value, timestamp}
+        Enum.map(entries, fn {{metric_name, _unique}, {labels, timestamp, value}} ->
+          {metric_name, labels, value, timestamp}
         end)
 
-      TimelessMetrics.write_batch_resolved(state.store, batch)
+      TimelessMetrics.write_batch(state.store, batch)
     end
   end
 
