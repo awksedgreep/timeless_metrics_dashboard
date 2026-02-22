@@ -212,41 +212,19 @@ defmodule TimelessMetricsDashboard.Page do
         fields={[
           {"Series", @info.series_count},
           {"Total Points", format_number(@info.total_points)},
-          {"Segment Points", format_number(@info.segment_points)},
-          {"Pending Points", format_number(@info.pending_points)},
-          {"Buffer Points", @info.buffer_points},
-          {"Compression", format_ratio(@info.bytes_per_point)},
+          {"Blocks", format_number(@info.block_count)},
+          {"Buffer Points", format_number(@info.raw_buffer_points)},
+          {"Actor Processes", @info.process_count},
+          {"Compressed Bytes", format_bytes(@info.compressed_bytes)},
           {"Bytes/Point", @info.bytes_per_point},
-          {"Disk Usage", format_bytes(@info.disk_bytes)},
-          {"Disk Bytes/Point", @info.disk_bytes_per_point},
-          {"Buffer Shards", @info.buffer_shards},
+          {"Storage", format_bytes(@info.storage_bytes)},
+          {"Daily Rollup Rows", format_number(@info.daily_rollup_rows)},
+          {"Index ETS", format_bytes(@info.index_ets_bytes)},
           {"Data Span", format_data_span(@info.oldest_timestamp, @info.newest_timestamp)},
           {"Oldest", format_ts(@info.oldest_timestamp)},
           {"Newest", format_ts(@info.newest_timestamp)}
         ]}
       />
-
-      <div :if={@info.tiers != %{}} style="margin-top:16px">
-        <h4 style="font-size:14px;font-weight:600;margin-bottom:8px">Rollup Tiers</h4>
-        <table style="width:100%;border-collapse:collapse;font-size:13px">
-          <thead>
-            <tr style="border-bottom:2px solid #e5e7eb;text-align:left">
-              <th style="padding:6px 8px">Tier</th>
-              <th style="padding:6px 8px">Resolution</th>
-              <th style="padding:6px 8px">Retention</th>
-              <th style="padding:6px 8px;text-align:right">Rows</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr :for={{name, tier} <- @info.tiers} style="border-bottom:1px solid #e5e7eb">
-              <td style="padding:6px 8px;font-family:monospace"><%= name %></td>
-              <td style="padding:6px 8px"><%= format_duration(tier.resolution_seconds) %></td>
-              <td style="padding:6px 8px"><%= tier.retention %></td>
-              <td style="padding:6px 8px;text-align:right"><%= format_number(tier.rows) %></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
     </div>
     <div :if={!@info} style="color:#6b7280;font-size:13px">Store not available.</div>
     """
@@ -451,8 +429,7 @@ defmodule TimelessMetricsDashboard.Page do
         title="Database"
         fields={[
           {"Path", @info.db_path},
-          {"Total DB Size", format_bytes(@info.disk_bytes)},
-          {"Raw Retention", format_duration(@info.raw_retention)}
+          {"Total Storage", format_bytes(@info.storage_bytes)}
         ]}
       />
 
@@ -696,18 +673,7 @@ defmodule TimelessMetricsDashboard.Page do
     :exit, _ -> nil
   end
 
-  # Add derived fields for display (storage_bytes already includes all shard DBs)
-  defp enrich_info(info) do
-    disk_bytes_per_point =
-      if info.total_points > 0,
-        do: Float.round(info.storage_bytes / info.total_points, 2),
-        else: 0.0
-
-    Map.merge(info, %{
-      disk_bytes: info.storage_bytes,
-      disk_bytes_per_point: disk_bytes_per_point
-    })
-  end
+  defp enrich_info(info), do: info
 
   # --- Formatters ---
 
