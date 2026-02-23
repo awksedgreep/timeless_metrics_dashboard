@@ -209,10 +209,10 @@ defmodule TimelessMetricsDashboard.Page do
     opts = [
       name: params["name"] || "",
       metric: params["metric"] || "",
-      condition: String.to_existing_atom(params["condition"] || "above"),
+      condition: safe_to_atom(params["condition"], ~w(above below), :above),
       threshold: parse_number(params["threshold"]),
       duration: parse_int(params["duration"]),
-      aggregate: String.to_existing_atom(params["aggregate"] || "avg"),
+      aggregate: safe_to_atom(params["aggregate"], ~w(avg min max sum count last first), :avg),
       webhook_url: blank_to_nil(params["webhook_url"])
     ]
 
@@ -1123,6 +1123,12 @@ defmodule TimelessMetricsDashboard.Page do
   defp blank_to_nil(nil), do: nil
   defp blank_to_nil(""), do: nil
   defp blank_to_nil(str), do: str
+
+  defp safe_to_atom(val, allowed, default) when is_binary(val) do
+    if val in allowed, do: String.to_atom(val), else: default
+  end
+
+  defp safe_to_atom(_, _allowed, default), do: default
 
   defp cross_page_path(socket, page, target_route, params) do
     Phoenix.LiveDashboard.PageBuilder.live_dashboard_path(
