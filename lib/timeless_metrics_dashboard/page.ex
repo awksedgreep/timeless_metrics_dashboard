@@ -77,9 +77,16 @@ defmodule TimelessMetricsDashboard.Page do
         metrics_list: [],
         chart_svg: nil,
         data_extent: nil,
+        time_from: nil,
+        time_to: nil,
         alerts: [],
         backups: [],
-        flash_msg: nil
+        flash_msg: nil,
+        show_alert_form: false,
+        editing_alert: nil,
+        alert_form: default_alert_form(),
+        metric_names: [],
+        alert_history: []
       )
       |> load_data()
 
@@ -152,6 +159,134 @@ defmodule TimelessMetricsDashboard.Page do
     {:noreply, assign(socket, flash_msg: nil)}
   end
 
+  def handle_event("show_alert_form", _params, socket) do
+    metric_names = load_metric_names(socket.assigns.store)
+
+    {:noreply,
+     assign(socket,
+       show_alert_form: true,
+       editing_alert: nil,
+       alert_form: default_alert_form(),
+       metric_names: metric_names
+     )}
+  end
+
+  def handle_event("edit_alert", %{"id" => id_str}, socket) do
+    id = String.to_integer(id_str)
+    alert = Enum.find(socket.assigns.alerts, &(&1.id == id))
+    metric_names = load_metric_names(socket.assigns.store)
+
+    if alert do
+      form = %{
+        "name" => alert.name,
+        "metric" => alert.metric,
+        "condition" => alert.condition,
+        "threshold" => to_string(alert.threshold),
+        "duration" => to_string(alert.duration),
+        "aggregate" => alert.aggregate,
+        "webhook_url" => alert.webhook_url || ""
+      }
+
+      {:noreply,
+       assign(socket,
+         show_alert_form: true,
+         editing_alert: id,
+         alert_form: form,
+         metric_names: metric_names
+       )}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("cancel_alert_form", _params, socket) do
+    {:noreply, assign(socket, show_alert_form: false, editing_alert: nil, alert_form: default_alert_form())}
+  end
+
+  def handle_event("save_alert", params, socket) do
+    store = socket.assigns.store
+
+    opts = [
+      name: params["name"] || "",
+      metric: params["metric"] || "",
+      condition: String.to_existing_atom(params["condition"] || "above"),
+      threshold: parse_number(params["threshold"]),
+      duration: parse_int(params["duration"]),
+      aggregate: String.to_existing_atom(params["aggregate"] || "avg"),
+      webhook_url: blank_to_nil(params["webhook_url"])
+    ]
+
+    result =
+      case socket.assigns.editing_alert do
+        nil -> TimelessMetrics.create_alert(store, opts)
+        id -> TimelessMetrics.update_alert(store, id, opts)
+      end
+
+    case result do
+      {:ok, _id} ->
+        {:noreply,
+         socket
+         |> set_flash("Alert created")
+         |> assign(show_alert_form: false, editing_alert: nil, alert_form: default_alert_form())
+         |> load_alerts()}
+
+      :ok ->
+        {:noreply,
+         socket
+         |> set_flash("Alert updated")
+         |> assign(show_alert_form: false, editing_alert: nil, alert_form: default_alert_form())
+         |> load_alerts()}
+
+      {:error, reason} ->
+        {:noreply, set_flash(socket, "Error: #{inspect(reason)}")}
+    end
+  end
+
+  def handle_event("delete_alert", %{"id" => id_str}, socket) do
+    id = String.to_integer(id_str)
+    TimelessMetrics.delete_alert(socket.assigns.store, id)
+
+    {:noreply,
+     socket
+     |> set_flash("Alert deleted")
+     |> load_alerts()}
+  end
+
+  def handle_event("toggle_alert", %{"id" => id_str}, socket) do
+    id = String.to_integer(id_str)
+    alert = Enum.find(socket.assigns.alerts, &(&1.id == id))
+
+    if alert do
+      TimelessMetrics.update_alert(socket.assigns.store, id, enabled: !alert.enabled)
+
+      {:noreply,
+       socket
+       |> set_flash("Alert #{if alert.enabled, do: "disabled", else: "enabled"}")
+       |> load_alerts()}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("acknowledge_alert", %{"id" => id_str}, socket) do
+    id = String.to_integer(id_str)
+    TimelessMetrics.acknowledge_alert(socket.assigns.store, id)
+
+    {:noreply,
+     socket
+     |> set_flash("Alert acknowledged")
+     |> load_alerts()}
+  end
+
+  def handle_event("clear_alert_history", _params, socket) do
+    TimelessMetrics.clear_alert_history(socket.assigns.store, acknowledged_only: true, before: System.os_time(:second) + 1)
+
+    {:noreply,
+     socket
+     |> set_flash("Acknowledged history cleared")
+     |> load_alerts()}
+  end
+
   @impl true
   def handle_info(:clear_flash, socket) do
     {:noreply, assign(socket, flash_msg: nil)}
@@ -192,9 +327,20 @@ defmodule TimelessMetricsDashboard.Page do
             data_extent={@data_extent}
             store={@store}
             metric_search={@metric_search}
+            time_from={@time_from}
+            time_to={@time_to}
+            page={@page}
+            socket={@socket}
           />
         <% :alerts -> %>
-          <.render_alerts alerts={@alerts} />
+          <.render_alerts
+            alerts={@alerts}
+            show_alert_form={@show_alert_form}
+            editing_alert={@editing_alert}
+            alert_form={@alert_form}
+            metric_names={@metric_names}
+            alert_history={@alert_history}
+          />
         <% :storage -> %>
           <.render_storage info={@info} backups={@backups} download_path={@download_path} />
       <% end %>
@@ -301,6 +447,21 @@ defmodule TimelessMetricsDashboard.Page do
           Select a metric from the sidebar.
         </div>
 
+        <div :if={@selected_metric && @time_from && @time_to} style="margin-top:8px;display:flex;gap:8px">
+          <a
+            href={cross_page_path(@socket, @page, :logs, %{"since" => to_string(@time_from), "until" => to_string(@time_to)})}
+            style="padding:4px 12px;background:#fff;color:#2563eb;border:1px solid #2563eb;border-radius:4px;font-size:12px;text-decoration:none;display:inline-block"
+          >
+            View Logs
+          </a>
+          <a
+            href={cross_page_path(@socket, @page, :traces, %{"since" => to_string(@time_from), "until" => to_string(@time_to)})}
+            style="padding:4px 12px;background:#fff;color:#2563eb;border:1px solid #2563eb;border-radius:4px;font-size:12px;text-decoration:none;display:inline-block"
+          >
+            View Traces
+          </a>
+        </div>
+
         <.render_metric_metadata store={@store} metric={@selected_metric} />
       </div>
     </div>
@@ -327,97 +488,234 @@ defmodule TimelessMetricsDashboard.Page do
     """
   end
 
-  @alert_examples [
-    %{
-      title: "Alert when VM memory exceeds 512 MB:",
-      code: """
-      TimelessMetrics.create_alert(:metrics,
-        name: "high_memory",
-        metric: "telemetry.vm.memory.total",
-        condition: :above,
-        threshold: 512_000_000,
-        duration: 60
-      )\
-      """
-    },
-    %{
-      title: "Alert when process count drops below 10:",
-      code: """
-      TimelessMetrics.create_alert(:metrics,
-        name: "low_processes",
-        metric: "telemetry.vm.system_counts.process_count",
-        condition: :below,
-        threshold: 10
-      )\
-      """
-    },
-    %{
-      title: "Alert with webhook (ntfy.sh, Slack, etc.):",
-      code: """
-      TimelessMetrics.create_alert(:metrics,
-        name: "high_request_latency",
-        metric: "telemetry.phoenix.endpoint.stop.duration",
-        condition: :above,
-        threshold: 500,
-        duration: 120,
-        aggregate: :avg,
-        webhook_url: "https://ntfy.sh/my-alerts"
-      )\
-      """
-    }
-  ]
-
   defp render_alerts(assigns) do
-    assigns = assign(assigns, :examples, @alert_examples)
-
     ~H"""
-    <div :if={@alerts == []} style="color:#6b7280;font-size:13px;margin-bottom:16px">No alert rules configured.</div>
-    <table :if={@alerts != []} style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px">
-      <thead>
-        <tr style="border-bottom:2px solid #e5e7eb;text-align:left">
-          <th style="padding:6px 8px">Name</th>
-          <th style="padding:6px 8px">Metric</th>
-          <th style="padding:6px 8px">Condition</th>
-          <th style="padding:6px 8px;text-align:right">Threshold</th>
-          <th style="padding:6px 8px;text-align:center">State</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr :for={alert <- @alerts} style="border-bottom:1px solid #e5e7eb">
-          <td style="padding:6px 8px;font-weight:500"><%= alert.name %></td>
-          <td style="padding:6px 8px;font-family:monospace;font-size:12px"><%= alert.metric %></td>
-          <td style="padding:6px 8px"><%= alert.condition %></td>
-          <td style="padding:6px 8px;text-align:right"><%= alert.threshold %></td>
-          <td style="padding:6px 8px;text-align:center">
-            <span style={"display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;" <>
-              alert_state_style(alert.state)}>
-              <%= alert.state %>
-            </span>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-
-    <div style="margin-top:8px;padding:16px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px">
-      <h4 style="margin:0 0 12px 0;font-size:14px;font-weight:600;color:#374151">Creating Alerts</h4>
-      <p style="margin:0 0 12px 0;font-size:13px;color:#6b7280;line-height:1.5">
-        Alert rules are created via the Timeless API. Add them in your application startup
-        or create them at any time from an IEx session.
-      </p>
-
-      <div :for={example <- @examples} style="margin-bottom:12px">
-        <div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:4px"><%= example.title %></div>
-        <pre style="margin:0;padding:10px;background:#1f2937;color:#e5e7eb;border-radius:4px;font-size:12px;overflow-x:auto;line-height:1.5"><%= String.trim(example.code) %></pre>
+    <div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <h4 style="margin:0;font-size:14px;font-weight:600">Alert Rules</h4>
+        <button
+          :if={!@show_alert_form}
+          phx-click="show_alert_form"
+          style="padding:6px 16px;background:#2563eb;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:13px"
+        >
+          New Alert
+        </button>
       </div>
 
-      <p style="margin:12px 0 0 0;font-size:12px;color:#9ca3af;line-height:1.5">
-        <strong>Options:</strong>
-        <code>:name</code>, <code>:metric</code>, <code>:condition</code> (<code>:above</code> | <code>:below</code>),
-        <code>:threshold</code>, <code>:duration</code> (seconds before firing, default 0),
-        <code>:labels</code> (filter map), <code>:aggregate</code> (default <code>:avg</code>),
-        <code>:webhook_url</code> (POST on state change).
-        Delete with <code>TimelessMetrics.delete_alert(:metrics, rule_id)</code>.
-      </p>
+      <div :if={@show_alert_form} style="padding:16px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;margin-bottom:16px">
+        <h4 style="margin:0 0 12px 0;font-size:14px;font-weight:600;color:#374151">
+          <%= if @editing_alert, do: "Edit Alert", else: "New Alert" %>
+        </h4>
+        <form phx-submit="save_alert">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+            <div>
+              <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:2px">Name *</label>
+              <input
+                type="text"
+                name="name"
+                value={@alert_form["name"]}
+                required
+                placeholder="e.g. high_memory"
+                style="width:100%;padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px;box-sizing:border-box"
+              />
+            </div>
+            <div>
+              <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:2px">Metric *</label>
+              <select
+                name="metric"
+                required
+                style="width:100%;padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px;box-sizing:border-box;background:#fff"
+              >
+                <option value="">Select metric...</option>
+                <option :for={m <- @metric_names} value={m} selected={m == @alert_form["metric"]}><%= m %></option>
+              </select>
+            </div>
+            <div>
+              <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:2px">Condition</label>
+              <select
+                name="condition"
+                style="width:100%;padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px;box-sizing:border-box;background:#fff"
+              >
+                <option value="above" selected={@alert_form["condition"] == "above"}>above</option>
+                <option value="below" selected={@alert_form["condition"] == "below"}>below</option>
+              </select>
+            </div>
+            <div>
+              <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:2px">Threshold *</label>
+              <input
+                type="number"
+                name="threshold"
+                value={@alert_form["threshold"]}
+                required
+                step="any"
+                style="width:100%;padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px;box-sizing:border-box"
+              />
+            </div>
+            <div>
+              <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:2px">Duration (seconds)</label>
+              <input
+                type="number"
+                name="duration"
+                value={@alert_form["duration"]}
+                min="0"
+                step="1"
+                style="width:100%;padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px;box-sizing:border-box"
+              />
+              <div style="font-size:11px;color:#9ca3af;margin-top:2px">0 = fire immediately</div>
+            </div>
+            <div>
+              <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:2px">Aggregate</label>
+              <select
+                name="aggregate"
+                style="width:100%;padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px;box-sizing:border-box;background:#fff"
+              >
+                <option :for={agg <- ~w(avg min max sum count last first)} value={agg} selected={agg == @alert_form["aggregate"]}><%= agg %></option>
+              </select>
+            </div>
+          </div>
+          <div style="margin-bottom:12px">
+            <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:2px">Webhook URL (optional)</label>
+            <input
+              type="url"
+              name="webhook_url"
+              value={@alert_form["webhook_url"]}
+              placeholder="https://ntfy.sh/my-alerts"
+              style="width:100%;padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px;box-sizing:border-box"
+            />
+          </div>
+          <div style="display:flex;gap:8px">
+            <button
+              type="submit"
+              style="padding:6px 16px;background:#2563eb;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:13px"
+            >
+              <%= if @editing_alert, do: "Update Alert", else: "Create Alert" %>
+            </button>
+            <button
+              type="button"
+              phx-click="cancel_alert_form"
+              style="padding:6px 16px;background:#fff;color:#374151;border:1px solid #d1d5db;border-radius:4px;cursor:pointer;font-size:13px"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <div :if={@alerts == []} style="color:#6b7280;font-size:13px">No alert rules configured.</div>
+      <table :if={@alerts != []} style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr style="border-bottom:2px solid #e5e7eb;text-align:left">
+            <th style="padding:6px 8px">Name</th>
+            <th style="padding:6px 8px">Metric</th>
+            <th style="padding:6px 8px">Condition</th>
+            <th style="padding:6px 8px;text-align:right">Threshold</th>
+            <th style="padding:6px 8px;text-align:center">State</th>
+            <th style="padding:6px 8px;text-align:center">Enabled</th>
+            <th style="padding:6px 8px;text-align:right">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr :for={alert <- @alerts} style="border-bottom:1px solid #e5e7eb">
+            <td style="padding:6px 8px;font-weight:500"><%= alert.name %></td>
+            <td style="padding:6px 8px;font-family:monospace;font-size:12px"><%= alert.metric %></td>
+            <td style="padding:6px 8px"><%= alert.condition %></td>
+            <td style="padding:6px 8px;text-align:right"><%= alert.threshold %></td>
+            <td style="padding:6px 8px;text-align:center">
+              <% state = worst_alert_state(alert) %>
+              <span style={"display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;" <>
+                alert_state_style(state)}>
+                <%= state %>
+              </span>
+            </td>
+            <td style="padding:6px 8px;text-align:center">
+              <button
+                phx-click="toggle_alert"
+                phx-value-id={alert.id}
+                style={"padding:2px 10px;border-radius:10px;font-size:11px;font-weight:600;cursor:pointer;border:none;" <>
+                  if(alert.enabled, do: "background:#dcfce7;color:#166534;", else: "background:#f3f4f6;color:#9ca3af;")}
+              >
+                <%= if alert.enabled, do: "on", else: "off" %>
+              </button>
+            </td>
+            <td style="padding:6px 8px;text-align:right;white-space:nowrap">
+              <button
+                phx-click="edit_alert"
+                phx-value-id={alert.id}
+                style="padding:3px 8px;background:#fff;color:#2563eb;border:1px solid #2563eb;border-radius:4px;cursor:pointer;font-size:12px;margin-right:4px"
+              >
+                Edit
+              </button>
+              <button
+                phx-click="delete_alert"
+                phx-value-id={alert.id}
+                data-confirm="Delete this alert rule?"
+                style="padding:3px 8px;background:#fff;color:#dc2626;border:1px solid #dc2626;border-radius:4px;cursor:pointer;font-size:12px"
+              >
+                Delete
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div style="margin-top:24px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <h4 style="margin:0;font-size:14px;font-weight:600">Recent Activity</h4>
+          <button
+            :if={Enum.any?(@alert_history, & &1.acknowledged)}
+            phx-click="clear_alert_history"
+            data-confirm="Remove all acknowledged history entries?"
+            style="padding:4px 12px;background:#f3f4f6;color:#374151;border:1px solid #d1d5db;border-radius:4px;cursor:pointer;font-size:12px"
+          >
+            Clear Acknowledged
+          </button>
+        </div>
+        <div :if={@alert_history == []} style="color:#6b7280;font-size:13px">No alert history yet.</div>
+        <table :if={@alert_history != []} style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead>
+            <tr style="border-bottom:2px solid #e5e7eb;text-align:left">
+              <th style="padding:6px 8px">Time</th>
+              <th style="padding:6px 8px">Alert Name</th>
+              <th style="padding:6px 8px">Metric</th>
+              <th style="padding:6px 8px">Series</th>
+              <th style="padding:6px 8px;text-align:center">State</th>
+              <th style="padding:6px 8px;text-align:right">Value</th>
+              <th style="padding:6px 8px;text-align:center">Ack'd</th>
+              <th style="padding:6px 8px;text-align:right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr :for={entry <- @alert_history} style="border-bottom:1px solid #e5e7eb">
+              <td style="padding:6px 8px;font-family:monospace;font-size:11px;white-space:nowrap"><%= format_ts(entry.created_at) %></td>
+              <td style="padding:6px 8px;font-weight:500"><%= entry.rule_name %></td>
+              <td style="padding:6px 8px;font-family:monospace;font-size:12px"><%= entry.metric %></td>
+              <td style="padding:6px 8px;font-family:monospace;font-size:11px"><%= format_labels(entry.series_labels) %></td>
+              <td style="padding:6px 8px;text-align:center">
+                <span style={"display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;" <>
+                  alert_state_style(entry.state)}>
+                  <%= entry.state %>
+                </span>
+              </td>
+              <td style="padding:6px 8px;text-align:right;font-family:monospace;font-size:12px">
+                <%= if entry.value, do: format_number(entry.value), else: "—" %>
+              </td>
+              <td style="padding:6px 8px;text-align:center">
+                <%= if entry.acknowledged, do: "✓", else: "—" %>
+              </td>
+              <td style="padding:6px 8px;text-align:right">
+                <button
+                  :if={!entry.acknowledged}
+                  phx-click="acknowledge_alert"
+                  phx-value-id={entry.id}
+                  style="padding:3px 8px;background:#fff;color:#2563eb;border:1px solid #2563eb;border-radius:4px;cursor:pointer;font-size:12px"
+                >
+                  Ack
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
     """
   end
@@ -558,13 +856,13 @@ defmodule TimelessMetricsDashboard.Page do
             )
 
           data_extent = compute_data_extent(series, range_seconds)
-          assign(socket, chart_svg: svg, data_extent: data_extent)
+          assign(socket, chart_svg: svg, data_extent: data_extent, time_from: from, time_to: now)
 
         _ ->
-          assign(socket, chart_svg: nil, data_extent: nil)
+          assign(socket, chart_svg: nil, data_extent: nil, time_from: from, time_to: now)
       end
     else
-      assign(socket, chart_svg: nil, data_extent: nil)
+      assign(socket, chart_svg: nil, data_extent: nil, time_from: nil, time_to: nil)
     end
   end
 
@@ -609,10 +907,21 @@ defmodule TimelessMetricsDashboard.Page do
   defp format_duration_human(seconds), do: "#{seconds}s"
 
   defp load_alerts(socket) do
-    case TimelessMetrics.list_alerts(socket.assigns.store) do
-      {:ok, alerts} -> assign(socket, alerts: alerts)
-      _ -> assign(socket, alerts: [])
-    end
+    store = socket.assigns.store
+
+    alerts =
+      case TimelessMetrics.list_alerts(store) do
+        {:ok, alerts} -> alerts
+        _ -> []
+      end
+
+    history =
+      case TimelessMetrics.alert_history(store, limit: 50) do
+        {:ok, entries} -> entries
+        _ -> []
+      end
+
+    assign(socket, alerts: alerts, alert_history: history)
   end
 
   defp load_storage(socket) do
@@ -710,18 +1019,6 @@ defmodule TimelessMetricsDashboard.Page do
 
   defp format_ts(ts), do: "#{ts}"
 
-  defp format_duration(seconds) when is_integer(seconds) do
-    cond do
-      seconds >= 86_400 -> "#{div(seconds, 86_400)}d"
-      seconds >= 3600 -> "#{div(seconds, 3600)}h"
-      seconds >= 60 -> "#{div(seconds, 60)}m"
-      true -> "#{seconds}s"
-    end
-  end
-
-  defp format_duration(:forever), do: "forever"
-  defp format_duration(_), do: "—"
-
   defp format_data_span(oldest, newest) when is_integer(oldest) and is_integer(newest) do
     span = newest - oldest
     age = System.os_time(:second) - newest
@@ -733,12 +1030,6 @@ defmodule TimelessMetricsDashboard.Page do
   end
 
   defp format_data_span(_, _), do: "—"
-
-  # 16 bytes uncompressed per point (8-byte timestamp + 8-byte float64)
-  defp format_ratio(bpp) when is_number(bpp) and bpp > 0,
-    do: "#{Float.round(16 / bpp, 1)}:1 (#{Float.round(100 - bpp / 16 * 100, 1)}% smaller)"
-
-  defp format_ratio(_), do: "—"
 
   # Group metrics by their first two dotted segments (e.g. "telemetry.vm")
   # Returns [{prefix, [full_metric_name, ...]}, ...] sorted by prefix
@@ -761,8 +1052,81 @@ defmodule TimelessMetricsDashboard.Page do
     end
   end
 
+  defp format_labels(labels) when is_map(labels) do
+    labels
+    |> Enum.map(fn {k, v} -> "#{k}=#{v}" end)
+    |> Enum.join(", ")
+  end
+
+  defp format_labels(_), do: "—"
+
   defp alert_state_style("ok"), do: "background:#dcfce7;color:#166534;"
   defp alert_state_style("firing"), do: "background:#fee2e2;color:#991b1b;"
   defp alert_state_style("pending"), do: "background:#fef3c7;color:#92400e;"
+  defp alert_state_style("resolved"), do: "background:#dbeafe;color:#1e40af;"
   defp alert_state_style(_), do: "background:#f3f4f6;color:#374151;"
+
+  defp worst_alert_state(alert) do
+    states = Enum.map(alert.states, & &1.state)
+
+    cond do
+      "firing" in states -> "firing"
+      "pending" in states -> "pending"
+      "resolved" in states -> "resolved"
+      true -> "ok"
+    end
+  end
+
+  defp default_alert_form do
+    %{
+      "name" => "",
+      "metric" => "",
+      "condition" => "above",
+      "threshold" => "",
+      "duration" => "0",
+      "aggregate" => "avg",
+      "webhook_url" => ""
+    }
+  end
+
+  defp load_metric_names(store) do
+    case TimelessMetrics.list_metrics(store) do
+      {:ok, list} -> list
+      _ -> []
+    end
+  end
+
+  defp parse_number(nil), do: 0.0
+  defp parse_number(""), do: 0.0
+
+  defp parse_number(str) when is_binary(str) do
+    case Float.parse(str) do
+      {val, _} -> val
+      :error -> 0.0
+    end
+  end
+
+  defp parse_number(n) when is_number(n), do: n * 1.0
+
+  defp parse_int(nil), do: 0
+  defp parse_int(""), do: 0
+
+  defp parse_int(str) when is_binary(str) do
+    case Integer.parse(str) do
+      {val, _} -> val
+      :error -> 0
+    end
+  end
+
+  defp parse_int(n) when is_integer(n), do: n
+
+  defp blank_to_nil(nil), do: nil
+  defp blank_to_nil(""), do: nil
+  defp blank_to_nil(str), do: str
+
+  defp cross_page_path(socket, page, target_route, params) do
+    Phoenix.LiveDashboard.PageBuilder.live_dashboard_path(
+      socket, target_route, page.node, %{}, params
+    )
+  end
 end
