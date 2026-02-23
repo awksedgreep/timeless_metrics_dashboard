@@ -619,7 +619,7 @@ defmodule TimelessMetricsDashboard.Page do
             <td style="padding:6px 8px;font-weight:500"><%= alert.name %></td>
             <td style="padding:6px 8px;font-family:monospace;font-size:12px"><%= alert.metric %></td>
             <td style="padding:6px 8px"><%= alert.condition %></td>
-            <td style="padding:6px 8px;text-align:right"><%= alert.threshold %></td>
+            <td style="padding:6px 8px;text-align:right"><%= format_number(alert.threshold) %></td>
             <td style="padding:6px 8px;text-align:center">
               <% state = worst_alert_state(alert) %>
               <span style={"display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;" <>
@@ -1005,7 +1005,16 @@ defmodule TimelessMetricsDashboard.Page do
     do: "#{Float.round(n / 1_000, 1)}K"
 
   defp format_number(n) when is_integer(n), do: Integer.to_string(n)
-  defp format_number(n) when is_float(n), do: Float.to_string(Float.round(n, 2))
+
+  defp format_number(n) when is_float(n) do
+    # If it's a whole number stored as float, format as integer
+    if n == Float.floor(n) and abs(n) < 1.0e15 do
+      format_number(trunc(n))
+    else
+      Float.to_string(Float.round(n, 2))
+    end
+  end
+
   defp format_number(_), do: "—"
 
   defp format_ts(nil), do: "—"
