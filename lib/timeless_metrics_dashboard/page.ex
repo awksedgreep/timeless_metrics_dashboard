@@ -448,20 +448,6 @@ defmodule TimelessMetricsDashboard.Page do
           Select a metric from the sidebar.
         </div>
 
-        <div :if={@selected_metric && @time_from && @time_to} style="margin-top:8px;display:flex;gap:8px">
-          <a
-            href={cross_page_path(@socket, @page, :logs, %{"since" => to_string(@time_from), "until" => to_string(@time_to)})}
-            style="padding:4px 12px;background:#fff;color:#2563eb;border:1px solid #2563eb;border-radius:4px;font-size:12px;text-decoration:none;display:inline-block"
-          >
-            View Logs
-          </a>
-          <a
-            href={cross_page_path(@socket, @page, :traces, %{"since" => to_string(@time_from), "until" => to_string(@time_to)})}
-            style="padding:4px 12px;background:#fff;color:#2563eb;border:1px solid #2563eb;border-radius:4px;font-size:12px;text-decoration:none;display:inline-block"
-          >
-            View Traces
-          </a>
-        </div>
 
         <.render_metric_metadata store={@store} metric={@selected_metric} />
       </div>
@@ -1149,9 +1135,4 @@ defmodule TimelessMetricsDashboard.Page do
 
   defp safe_to_atom(_, _allowed, default), do: default
 
-  defp cross_page_path(socket, page, target_route, params) do
-    Phoenix.LiveDashboard.PageBuilder.live_dashboard_path(
-      socket, target_route, page.node, %{}, params
-    )
-  end
 end
