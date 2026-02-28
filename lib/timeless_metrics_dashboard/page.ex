@@ -363,6 +363,7 @@ defmodule TimelessMetricsDashboard.Page do
           {"Actor Processes", @info.process_count},
           {"Compressed Bytes", format_bytes(@info.compressed_bytes)},
           {"Bytes/Point", @info.bytes_per_point},
+          {"Compression Ratio", format_compression_ratio(@info.bytes_per_point)},
           {"Storage", format_bytes(@info.storage_bytes)},
           {"Daily Rollup Rows", format_number(@info.daily_rollup_rows)},
           {"Index ETS", format_bytes(@info.index_ets_bytes)},
@@ -997,6 +998,15 @@ defmodule TimelessMetricsDashboard.Page do
 
   defp format_bytes(bytes) when is_integer(bytes), do: "#{bytes} B"
   defp format_bytes(_), do: "—"
+
+  # 16 bytes per raw point (8-byte timestamp + 8-byte value)
+  defp format_compression_ratio(bpp) when is_number(bpp) and bpp > 0 do
+    ratio = 16 / bpp
+    pct = Float.round((1 - bpp / 16) * 100, 1)
+    "#{Float.round(ratio, 1)}x (#{pct}% smaller)"
+  end
+
+  defp format_compression_ratio(_), do: "—"
 
   defp format_number(n) when is_integer(n) and n >= 1_000_000,
     do: "#{Float.round(n / 1_000_000, 1)}M"
