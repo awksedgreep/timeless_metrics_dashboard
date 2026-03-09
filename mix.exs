@@ -4,7 +4,7 @@ defmodule TimelessMetricsDashboard.MixProject do
   def project do
     [
       app: :timeless_metrics_dashboard,
-      version: "0.2.0",
+      version: "0.3.0",
       elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
       deps: deps()
@@ -19,7 +19,7 @@ defmodule TimelessMetricsDashboard.MixProject do
 
   defp deps do
     [
-      {:timeless_metrics, path: "../timeless_metrics"},
+      {:timeless_metrics, github: "awksedgreep/timeless_metrics", tag: "v3.6.0"},
       {:telemetry, "~> 1.0"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0", optional: true},
