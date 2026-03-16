@@ -34,7 +34,7 @@ defmodule TimelessMetricsDashboard.Router do
       download_path = Keyword.get(opts, :download_path, "/timeless/downloads")
       extra = Keyword.get(opts, :live_dashboard, [])
 
-      forward download_path, TimelessMetricsDashboard.DownloadPlug, store: store
+      forward(download_path, TimelessMetricsDashboard.DownloadPlug, store: store)
 
       dashboard_opts =
         [
@@ -46,7 +46,7 @@ defmodule TimelessMetricsDashboard.Router do
           ]
         ] ++ extra
 
-      live_dashboard path, dashboard_opts
+      live_dashboard(path, dashboard_opts)
     end
   end
 end

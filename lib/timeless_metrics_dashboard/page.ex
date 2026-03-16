@@ -200,7 +200,8 @@ defmodule TimelessMetricsDashboard.Page do
   end
 
   def handle_event("cancel_alert_form", _params, socket) do
-    {:noreply, assign(socket, show_alert_form: false, editing_alert: nil, alert_form: default_alert_form())}
+    {:noreply,
+     assign(socket, show_alert_form: false, editing_alert: nil, alert_form: default_alert_form())}
   end
 
   def handle_event("save_alert", params, socket) do
@@ -279,7 +280,10 @@ defmodule TimelessMetricsDashboard.Page do
   end
 
   def handle_event("clear_alert_history", _params, socket) do
-    TimelessMetrics.clear_alert_history(socket.assigns.store, acknowledged_only: true, before: System.os_time(:second) + 1)
+    TimelessMetrics.clear_alert_history(socket.assigns.store,
+      acknowledged_only: true,
+      before: System.os_time(:second) + 1
+    )
 
     {:noreply,
      socket
@@ -1134,5 +1138,4 @@ defmodule TimelessMetricsDashboard.Page do
   end
 
   defp safe_to_atom(_, _allowed, default), do: default
-
 end

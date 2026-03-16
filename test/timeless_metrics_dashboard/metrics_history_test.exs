@@ -101,8 +101,19 @@ defmodule TimelessMetricsDashboard.MetricsHistoryTest do
 
       # 3 series, 2 timestamps each — all collapse to nil label
       for {source, vals} <- [{"x", [10, 40]}, {"y", [20, 50]}, {"z", [30, 60]}] do
-        write_and_flush("telemetry.test.multi.overlap", %{"source" => source}, vals |> hd() |> (& &1 * 1.0).(), now - 1)
-        write_and_flush("telemetry.test.multi.overlap", %{"source" => source}, vals |> List.last() |> (& &1 * 1.0).(), now)
+        write_and_flush(
+          "telemetry.test.multi.overlap",
+          %{"source" => source},
+          vals |> hd() |> (&(&1 * 1.0)).(),
+          now - 1
+        )
+
+        write_and_flush(
+          "telemetry.test.multi.overlap",
+          %{"source" => source},
+          vals |> List.last() |> (&(&1 * 1.0)).(),
+          now
+        )
       end
 
       metric = summary("test.multi.overlap")
