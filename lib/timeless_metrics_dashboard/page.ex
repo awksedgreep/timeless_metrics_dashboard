@@ -362,18 +362,17 @@ defmodule TimelessMetricsDashboard.Page do
         fields={[
           {"Series", @info.series_count},
           {"Total Points", format_number(@info.total_points)},
+          {"Points Ingested", format_number(@info[:points_ingested])},
           {"Blocks", format_number(@info.block_count)},
           {"Buffer Points", format_number(@info.raw_buffer_points)},
-          {"Actor Processes", @info.process_count},
           {"Compressed Bytes", format_bytes(@info.compressed_bytes)},
           {"Bytes/Point", @info.bytes_per_point},
           {"Compression Ratio", format_compression_ratio(@info.bytes_per_point)},
           {"Storage", format_bytes(@info.storage_bytes)},
           {"Daily Rollup Rows", format_number(@info.daily_rollup_rows)},
-          {"Index ETS", format_bytes(@info.index_ets_bytes)},
-          {"Data Span", format_data_span(@info.oldest_timestamp, @info.newest_timestamp)},
-          {"Oldest", format_ts(@info.oldest_timestamp)},
-          {"Newest", format_ts(@info.newest_timestamp)}
+          {"Data Span", format_data_span(@info[:oldest_timestamp], @info[:newest_timestamp])},
+          {"Oldest", format_ts(@info[:oldest_timestamp])},
+          {"Newest", format_ts(@info[:newest_timestamp])}
         ]}
       />
     </div>
