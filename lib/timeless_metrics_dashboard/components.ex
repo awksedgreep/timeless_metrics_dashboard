@@ -28,11 +28,15 @@ defmodule TimelessMetricsDashboard.Components do
   attr(:svg, :string, required: true)
 
   def chart_embed(assigns) do
+    assigns = assign(assigns, :svg_data_uri, svg_data_uri(assigns.svg))
+
     ~H"""
     <div style="margin-bottom:16px">
       <h4 :if={@title} style="margin:0 0 8px 0;font-size:14px;font-weight:600"><%= @title %></h4>
-      <%= Phoenix.HTML.raw(@svg) %>
+      <img src={@svg_data_uri} alt={@title || "metric chart"} style="display:block;max-width:100%;height:auto" />
     </div>
     """
   end
+
+  defp svg_data_uri(svg), do: "data:image/svg+xml;base64," <> Base.encode64(svg)
 end
