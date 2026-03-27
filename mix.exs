@@ -1,7 +1,7 @@
 defmodule TimelessMetricsDashboard.MixProject do
   use Mix.Project
 
-  @version "0.4.2"
+  @version "0.4.3"
   @source_url "https://github.com/awksedgreep/timeless_metrics_dashboard"
 
   def project do
@@ -27,13 +27,14 @@ defmodule TimelessMetricsDashboard.MixProject do
 
   defp deps do
     [
-      {:timeless_metrics, "~> 6.0.3"},
+      {:timeless_metrics, "~> 6.0.4"},
       {:telemetry, "~> 1.0"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0", optional: true},
       {:phoenix_live_dashboard, "~> 0.8", optional: true},
       {:phoenix_live_view, "~> 1.0", optional: true},
-      {:igniter, "~> 0.6", optional: true}
+      {:igniter, "~> 0.6", optional: true},
+      {:ex_doc, "~> 0.34", only: :dev, runtime: false}
     ]
   end
 
