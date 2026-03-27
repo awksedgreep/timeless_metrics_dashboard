@@ -301,22 +301,27 @@ defmodule TimelessMetricsDashboard.Page do
   @impl true
   def render(assigns) do
     ~H"""
-    <div>
-      <div style="display:flex;gap:8px;margin-bottom:16px">
-        <button
-          :for={tab <- [:overview, :metrics, :alerts, :storage]}
-          phx-click="select_tab"
-          phx-value-tab={tab}
-          style={"padding:6px 16px;border:1px solid #d1d5db;border-radius:4px;cursor:pointer;font-size:13px;" <>
-            if(tab == @active_tab, do: "background:#2563eb;color:#fff;border-color:#2563eb;", else: "background:#fff;color:#374151;")}
-        >
-          <%= tab |> to_string() |> String.capitalize() %>
-        </button>
-      </div>
+    <div class="timeless-metrics-page">
+      <ul class="nav nav-pills mb-3">
+        <li :for={tab <- [:overview, :metrics, :alerts, :storage]} class="nav-item">
+          <button
+            phx-click="select_tab"
+            phx-value-tab={tab}
+            type="button"
+            class={"nav-link #{if(tab == @active_tab, do: "active", else: "")}"}
+          >
+            <%= tab |> to_string() |> String.capitalize() %>
+          </button>
+        </li>
+      </ul>
 
-      <div :if={@flash_msg} style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;margin-bottom:12px;background:#dbeafe;border:1px solid #93c5fd;border-radius:4px;font-size:13px;color:#1e40af">
+      <div
+        :if={@flash_msg}
+        class="alert alert-primary d-flex align-items-center justify-content-between"
+        role="alert"
+      >
         <span><%= @flash_msg %></span>
-        <button phx-click="dismiss_flash" style="background:none;border:none;cursor:pointer;color:#1e40af;font-size:16px;padding:0 0 0 12px;line-height:1">&times;</button>
+        <button phx-click="dismiss_flash" type="button" class="btn-close" aria-label="Dismiss"></button>
       </div>
 
       <%= case @active_tab do %>
@@ -357,26 +362,76 @@ defmodule TimelessMetricsDashboard.Page do
   defp render_overview(assigns) do
     ~H"""
     <div :if={@info}>
-      <.fields_card
-        title="Store Statistics"
-        fields={[
-          {"Series", @info.series_count},
-          {"Total Points", format_number(@info.total_points)},
-          {"Points Ingested", format_number(@info[:points_ingested])},
-          {"Blocks", format_number(@info.block_count)},
-          {"Buffer Points", format_number(@info.raw_buffer_points)},
-          {"Compressed Bytes", format_bytes(@info.compressed_bytes)},
-          {"Bytes/Point", @info.bytes_per_point},
-          {"Compression Ratio", format_compression_ratio(@info.bytes_per_point)},
-          {"Storage", format_bytes(@info.storage_bytes)},
-          {"Daily Rollup Rows", format_number(@info.daily_rollup_rows)},
-          {"Data Span", format_data_span(@info[:oldest_timestamp], @info[:newest_timestamp])},
-          {"Oldest", format_ts(@info[:oldest_timestamp])},
-          {"Newest", format_ts(@info[:newest_timestamp])}
-        ]}
-      />
+      <div class="row">
+        <.stat_card label="Series" value={format_number(@info.series_count)} />
+        <.stat_card label="Total Points" value={format_number(@info.total_points)} />
+        <.stat_card
+          label="Buffer Points"
+          value={format_number(info_value(@info, :raw_buffer_points, :buffer_points, 0))}
+        />
+        <.stat_card
+          label="Blocks"
+          value={format_number(info_value(@info, :block_count, :segment_count, 0))}
+        />
+        <.stat_card
+          label="Storage"
+          value={format_bytes(info_value(@info, :storage_bytes, :storage_bytes, 0))}
+        />
+        <.stat_card
+          label="Compressed Bytes"
+          value={format_bytes(info_value(@info, :compressed_bytes, :raw_compressed_bytes, 0))}
+        />
+        <.stat_card
+          label="Bytes / Point"
+          value={format_number(info_value(@info, :bytes_per_point, :bytes_per_point, 0.0))}
+        />
+        <.stat_card
+          label="Compression"
+          value={format_compression_status(@info)}
+        />
+      </div>
+
+      <div class="row mt-2">
+        <div class="col-sm-6 mb-3">
+          <div class="card h-100">
+            <div class="card-body">
+              <h6 class="card-subtitle text-muted mb-3">Data Window</h6>
+              <dl class="row mb-0" style="font-size: 0.9rem;">
+                <dt class="col-sm-4">Span</dt>
+                <dd class="col-sm-8">{format_data_span(@info[:oldest_timestamp], @info[:newest_timestamp])}</dd>
+                <dt class="col-sm-4">Oldest</dt>
+                <dd class="col-sm-8">{format_ts(@info[:oldest_timestamp])}</dd>
+                <dt class="col-sm-4">Newest</dt>
+                <dd class="col-sm-8">{format_ts(@info[:newest_timestamp])}</dd>
+              </dl>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-sm-6 mb-3">
+          <div class="card h-100">
+            <div class="card-body">
+              <h6 class="card-subtitle text-muted mb-3">Engine Details</h6>
+              <dl class="row mb-0" style="font-size: 0.9rem;">
+                <dt class="col-sm-5">Points Ingested</dt>
+                <dd class="col-sm-7">{format_number(@info[:points_ingested])}</dd>
+                <dt class="col-sm-5">Daily Rollup Rows</dt>
+                <dd class="col-sm-7">{format_number(info_value(@info, :daily_rollup_rows, :daily_rollup_rows, 0))}</dd>
+                <dt class="col-sm-5">Index Memory</dt>
+                <dd class="col-sm-7">{format_bytes(info_value(@info, :index_ets_bytes, :index_ets_bytes, 0))}</dd>
+                <dt class="col-sm-5">Buffer Memory</dt>
+                <dd class="col-sm-7">{format_bytes(info_value(@info, :buffer_memory_bytes, :buffer_memory_bytes, 0))}</dd>
+                <dt class="col-sm-5">On-Disk Points</dt>
+                <dd class="col-sm-7">{format_number(info_value(@info, :disk_points, :disk_points, 0))}</dd>
+                <dt class="col-sm-5">Processes</dt>
+                <dd class="col-sm-7">{format_number(info_value(@info, :process_count, :process_count, 1))}</dd>
+              </dl>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
-    <div :if={!@info} style="color:#6b7280;font-size:13px">Store not available.</div>
+    <div :if={!@info} class="text-center text-muted py-4">Store not available.</div>
     """
   end
 
@@ -393,64 +448,81 @@ defmodule TimelessMetricsDashboard.Page do
     assigns = assign(assigns, filtered: filtered, grouped: grouped)
 
     ~H"""
-    <div style="display:flex;gap:16px">
-      <div style="width:240px;flex-shrink:0">
-        <h4 style="font-size:14px;font-weight:600;margin:0 0 8px 0">
-          Metrics
-          <span :if={@metrics_list != []} style="font-weight:400;color:#9ca3af;font-size:12px">
-            (<%= length(@filtered) %>/<%= length(@metrics_list) %>)
-          </span>
-        </h4>
-        <form phx-change="search_metrics" style="margin-bottom:8px">
-          <input
-            type="text"
-            name="search"
-            value={@metric_search}
-            placeholder="Filter metrics..."
-            phx-debounce="150"
-            autocomplete="off"
-            style="width:100%;padding:4px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:12px;box-sizing:border-box"
-          />
-        </form>
-        <div :if={@metrics_list == []} style="color:#6b7280;font-size:13px">No metrics yet.</div>
-        <div :if={@filtered == [] && @metrics_list != []} style="color:#6b7280;font-size:13px">No matches.</div>
-        <div style="max-height:500px;overflow-y:auto">
-          <div :for={{prefix, metrics} <- @grouped} style="margin-bottom:6px">
-            <div style="font-size:11px;font-weight:600;color:#9ca3af;padding:2px 8px;text-transform:uppercase;letter-spacing:0.5px">
-              <%= prefix %>
+    <div class="row">
+      <div class="col-lg-4 col-xl-3 mb-3">
+        <div class="card h-100">
+          <div class="card-body">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <h6 class="card-subtitle text-muted mb-0">Metrics</h6>
+              <small :if={@metrics_list != []} class="text-muted">
+                <%= length(@filtered) %>/<%= length(@metrics_list) %>
+              </small>
             </div>
-            <div
-              :for={metric <- metrics}
-              phx-click="select_metric"
-              phx-value-metric={metric}
-              style={"padding:3px 8px 3px 16px;cursor:pointer;border-radius:4px;font-size:12px;font-family:monospace;word-break:break-all;" <>
-                if(metric == @selected_metric, do: "background:#dbeafe;color:#1e40af;", else: "color:#374151;")}
-            >
-              <%= short_metric_name(metric, prefix) %>
+
+            <form phx-change="search_metrics" class="mb-3">
+              <input
+                type="text"
+                name="search"
+                value={@metric_search}
+                placeholder="Filter metrics..."
+                phx-debounce="150"
+                autocomplete="off"
+                class="form-control form-control-sm"
+              />
+            </form>
+
+            <div :if={@metrics_list == []} class="text-muted small">No metrics yet.</div>
+            <div :if={@filtered == [] && @metrics_list != []} class="text-muted small">No matches.</div>
+
+            <div style="max-height: 540px; overflow-y: auto;">
+              <div :for={{prefix, metrics} <- @grouped} class="mb-3">
+                <div class="text-uppercase text-muted fw-semibold mb-1" style="font-size: 0.7rem; letter-spacing: 0.06em;">
+                  <%= prefix %>
+                </div>
+                <button
+                  :for={metric <- metrics}
+                  phx-click="select_metric"
+                  phx-value-metric={metric}
+                  type="button"
+                  class={"btn btn-sm text-start w-100 mb-1 #{if(metric == @selected_metric, do: "btn-primary", else: "btn-light")}"}
+                  style="font-family: monospace; white-space: normal;"
+                >
+                  <%= short_metric_name(metric, prefix) %>
+                </button>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div style="flex:1;min-width:0">
-        <.time_picker selected={@time_range} />
+      <div class="col-lg-8 col-xl-9">
+        <div class="card mb-3">
+          <div class="card-body">
+            <div class="d-flex flex-wrap align-items-center justify-content-between mb-3" style="gap: 0.75rem;">
+              <div>
+                <h5 class="card-title mb-1"><%= @selected_metric || "Metric Explorer" %></h5>
+                <div class="text-muted small">Average values over the selected window</div>
+              </div>
+              <.time_picker selected={@time_range} />
+            </div>
 
-        <div :if={@data_extent} style="font-size:12px;color:#9ca3af;margin:4px 0">
-          <%= @data_extent %>
+            <div :if={@data_extent} class="text-muted small mb-3">
+              <%= @data_extent %>
+            </div>
+
+            <div :if={@chart_svg}>
+              <.chart_embed svg={@chart_svg} />
+            </div>
+
+            <div :if={@selected_metric && !@chart_svg} class="text-muted py-4">
+              No data for this metric in the selected time range.
+            </div>
+
+            <div :if={!@selected_metric} class="text-muted py-4">
+              Select a metric from the list to inspect recent values.
+            </div>
+          </div>
         </div>
-
-        <div :if={@chart_svg}>
-          <.chart_embed svg={@chart_svg} />
-        </div>
-
-        <div :if={@selected_metric && !@chart_svg} style="color:#6b7280;font-size:13px;padding:20px 0">
-          No data for this metric in the selected time range.
-        </div>
-
-        <div :if={!@selected_metric} style="color:#6b7280;font-size:13px;padding:20px 0">
-          Select a metric from the sidebar.
-        </div>
-
 
         <.render_metric_metadata store={@store} metric={@selected_metric} />
       </div>
@@ -470,10 +542,18 @@ defmodule TimelessMetricsDashboard.Page do
     assigns = assign(assigns, :metadata, metadata)
 
     ~H"""
-    <div :if={@metadata} style="margin-top:12px;padding:8px 12px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:4px;font-size:12px">
-      <span :if={@metadata.type} style="margin-right:12px"><strong>Type:</strong> <%= @metadata.type %></span>
-      <span :if={@metadata.unit} style="margin-right:12px"><strong>Unit:</strong> <%= @metadata.unit %></span>
-      <span :if={@metadata.description}><strong>Description:</strong> <%= @metadata.description %></span>
+    <div :if={@metadata} class="card mb-3">
+      <div class="card-body">
+        <h6 class="card-subtitle text-muted mb-3">Metric Metadata</h6>
+        <dl class="row mb-0" style="font-size: 0.9rem;">
+          <dt :if={@metadata.type} class="col-sm-2">Type</dt>
+          <dd :if={@metadata.type} class="col-sm-10"><%= @metadata.type %></dd>
+          <dt :if={@metadata.unit} class="col-sm-2">Unit</dt>
+          <dd :if={@metadata.unit} class="col-sm-10"><%= @metadata.unit %></dd>
+          <dt :if={@metadata.description} class="col-sm-2">Description</dt>
+          <dd :if={@metadata.description} class="col-sm-10"><%= @metadata.description %></dd>
+        </dl>
+      </div>
     </div>
     """
   end
@@ -481,157 +561,162 @@ defmodule TimelessMetricsDashboard.Page do
   defp render_alerts(assigns) do
     ~H"""
     <div>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-        <h4 style="margin:0;font-size:14px;font-weight:600">Alert Rules</h4>
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <h5 class="mb-0">Alert Rules</h5>
         <button
           :if={!@show_alert_form}
           phx-click="show_alert_form"
-          style="padding:6px 16px;background:#2563eb;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:13px"
+          type="button"
+          class="btn btn-primary btn-sm"
         >
           New Alert
         </button>
       </div>
 
-      <div :if={@show_alert_form} style="padding:16px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;margin-bottom:16px">
-        <h4 style="margin:0 0 12px 0;font-size:14px;font-weight:600;color:#374151">
+      <div :if={@show_alert_form} class="card mb-4">
+        <div class="card-body">
+        <h6 class="card-subtitle text-muted mb-3">
           <%= if @editing_alert, do: "Edit Alert", else: "New Alert" %>
-        </h4>
+        </h6>
         <form phx-submit="save_alert">
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
-            <div>
-              <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:2px">Name *</label>
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Name *</label>
               <input
                 type="text"
                 name="name"
                 value={@alert_form["name"]}
                 required
                 placeholder="e.g. high_memory"
-                style="width:100%;padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px;box-sizing:border-box"
+                class="form-control form-control-sm"
               />
             </div>
-            <div>
-              <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:2px">Metric *</label>
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Metric *</label>
               <select
                 name="metric"
                 required
-                style="width:100%;padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px;box-sizing:border-box;background:#fff"
+                class="form-select form-select-sm"
               >
                 <option value="">Select metric...</option>
                 <option :for={m <- @metric_names} value={m} selected={m == @alert_form["metric"]}><%= m %></option>
               </select>
             </div>
-            <div>
-              <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:2px">Condition</label>
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Condition</label>
               <select
                 name="condition"
-                style="width:100%;padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px;box-sizing:border-box;background:#fff"
+                class="form-select form-select-sm"
               >
                 <option value="above" selected={@alert_form["condition"] == "above"}>above</option>
                 <option value="below" selected={@alert_form["condition"] == "below"}>below</option>
               </select>
             </div>
-            <div>
-              <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:2px">Threshold *</label>
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Threshold *</label>
               <input
                 type="number"
                 name="threshold"
                 value={@alert_form["threshold"]}
                 required
                 step="any"
-                style="width:100%;padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px;box-sizing:border-box"
+                class="form-control form-control-sm"
               />
             </div>
-            <div>
-              <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:2px">Duration (seconds)</label>
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Duration (seconds)</label>
               <input
                 type="number"
                 name="duration"
                 value={@alert_form["duration"]}
                 min="0"
                 step="1"
-                style="width:100%;padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px;box-sizing:border-box"
+                class="form-control form-control-sm"
               />
-              <div style="font-size:11px;color:#9ca3af;margin-top:2px">0 = fire immediately</div>
+              <div class="form-text">0 = fire immediately</div>
             </div>
-            <div>
-              <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:2px">Aggregate</label>
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Aggregate</label>
               <select
                 name="aggregate"
-                style="width:100%;padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px;box-sizing:border-box;background:#fff"
+                class="form-select form-select-sm"
               >
                 <option :for={agg <- ~w(avg min max sum count last first)} value={agg} selected={agg == @alert_form["aggregate"]}><%= agg %></option>
               </select>
             </div>
           </div>
-          <div style="margin-bottom:12px">
-            <label style="display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:2px">Webhook URL (optional)</label>
+          <div class="mb-3">
+            <label class="form-label">Webhook URL (optional)</label>
             <input
               type="url"
               name="webhook_url"
               value={@alert_form["webhook_url"]}
               placeholder="https://ntfy.sh/my-alerts"
-              style="width:100%;padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px;box-sizing:border-box"
+              class="form-control form-control-sm"
             />
           </div>
-          <div style="display:flex;gap:8px">
+          <div class="d-flex" style="gap: 0.5rem;">
             <button
               type="submit"
-              style="padding:6px 16px;background:#2563eb;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:13px"
+              class="btn btn-primary btn-sm"
             >
               <%= if @editing_alert, do: "Update Alert", else: "Create Alert" %>
             </button>
             <button
               type="button"
               phx-click="cancel_alert_form"
-              style="padding:6px 16px;background:#fff;color:#374151;border:1px solid #d1d5db;border-radius:4px;cursor:pointer;font-size:13px"
+              class="btn btn-outline-secondary btn-sm"
             >
               Cancel
             </button>
           </div>
         </form>
+        </div>
       </div>
 
-      <div :if={@alerts == []} style="color:#6b7280;font-size:13px">No alert rules configured.</div>
-      <table :if={@alerts != []} style="width:100%;border-collapse:collapse;font-size:13px">
+      <div :if={@alerts == []} class="text-muted py-3">No alert rules configured.</div>
+      <div :if={@alerts != []} class="card">
+        <div class="card-body p-0">
+      <table class="table table-sm table-hover mb-0">
         <thead>
-          <tr style="border-bottom:2px solid #e5e7eb;text-align:left">
-            <th style="padding:6px 8px">Name</th>
-            <th style="padding:6px 8px">Metric</th>
-            <th style="padding:6px 8px">Condition</th>
-            <th style="padding:6px 8px;text-align:right">Threshold</th>
-            <th style="padding:6px 8px;text-align:center">State</th>
-            <th style="padding:6px 8px;text-align:center">Enabled</th>
-            <th style="padding:6px 8px;text-align:right">Actions</th>
+          <tr>
+            <th>Name</th>
+            <th>Metric</th>
+            <th>Condition</th>
+            <th class="text-end">Threshold</th>
+            <th class="text-center">State</th>
+            <th class="text-center">Enabled</th>
+            <th class="text-end">Actions</th>
           </tr>
         </thead>
         <tbody>
-          <tr :for={alert <- @alerts} style="border-bottom:1px solid #e5e7eb">
-            <td style="padding:6px 8px;font-weight:500"><%= alert.name %></td>
-            <td style="padding:6px 8px;font-family:monospace;font-size:12px"><%= alert.metric %></td>
-            <td style="padding:6px 8px"><%= alert.condition %></td>
-            <td style="padding:6px 8px;text-align:right"><%= format_number(alert.threshold) %></td>
-            <td style="padding:6px 8px;text-align:center">
+          <tr :for={alert <- @alerts}>
+            <td class="fw-semibold"><%= alert.name %></td>
+            <td style="font-family: monospace; font-size: 0.78rem;"><%= alert.metric %></td>
+            <td><%= alert.condition %></td>
+            <td class="text-end"><%= format_number(alert.threshold) %></td>
+            <td class="text-center">
               <% state = worst_alert_state(alert) %>
-              <span style={"display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;" <>
-                alert_state_style(state)}>
+              <span class="badge rounded-pill" style={alert_state_style(state)}>
                 <%= state %>
               </span>
             </td>
-            <td style="padding:6px 8px;text-align:center">
+            <td class="text-center">
               <button
                 phx-click="toggle_alert"
                 phx-value-id={alert.id}
-                style={"padding:2px 10px;border-radius:10px;font-size:11px;font-weight:600;cursor:pointer;border:none;" <>
-                  if(alert.enabled, do: "background:#dcfce7;color:#166534;", else: "background:#f3f4f6;color:#9ca3af;")}
+                type="button"
+                class={"btn btn-sm #{if(alert.enabled, do: "btn-success", else: "btn-outline-secondary")}"}
               >
                 <%= if alert.enabled, do: "on", else: "off" %>
               </button>
             </td>
-            <td style="padding:6px 8px;text-align:right;white-space:nowrap">
+            <td class="text-end text-nowrap">
               <button
                 phx-click="edit_alert"
                 phx-value-id={alert.id}
-                style="padding:3px 8px;background:#fff;color:#2563eb;border:1px solid #2563eb;border-radius:4px;cursor:pointer;font-size:12px;margin-right:4px"
+                type="button"
+                class="btn btn-outline-primary btn-sm me-1"
               >
                 Edit
               </button>
@@ -639,7 +724,8 @@ defmodule TimelessMetricsDashboard.Page do
                 phx-click="delete_alert"
                 phx-value-id={alert.id}
                 data-confirm="Delete this alert rule?"
-                style="padding:3px 8px;background:#fff;color:#dc2626;border:1px solid #dc2626;border-radius:4px;cursor:pointer;font-size:12px"
+                type="button"
+                class="btn btn-outline-danger btn-sm"
               >
                 Delete
               </button>
@@ -647,57 +733,62 @@ defmodule TimelessMetricsDashboard.Page do
           </tr>
         </tbody>
       </table>
+        </div>
+      </div>
 
-      <div style="margin-top:24px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-          <h4 style="margin:0;font-size:14px;font-weight:600">Recent Activity</h4>
+      <div class="mt-4">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+          <h5 class="mb-0">Recent Activity</h5>
           <button
             :if={Enum.any?(@alert_history, & &1.acknowledged)}
             phx-click="clear_alert_history"
             data-confirm="Remove all acknowledged history entries?"
-            style="padding:4px 12px;background:#f3f4f6;color:#374151;border:1px solid #d1d5db;border-radius:4px;cursor:pointer;font-size:12px"
+            type="button"
+            class="btn btn-outline-secondary btn-sm"
           >
             Clear Acknowledged
           </button>
         </div>
-        <div :if={@alert_history == []} style="color:#6b7280;font-size:13px">No alert history yet.</div>
-        <table :if={@alert_history != []} style="width:100%;border-collapse:collapse;font-size:13px">
+        <div :if={@alert_history == []} class="text-muted py-3">No alert history yet.</div>
+        <div :if={@alert_history != []} class="card">
+          <div class="card-body p-0">
+        <table class="table table-sm table-hover mb-0">
           <thead>
-            <tr style="border-bottom:2px solid #e5e7eb;text-align:left">
-              <th style="padding:6px 8px">Time</th>
-              <th style="padding:6px 8px">Alert Name</th>
-              <th style="padding:6px 8px">Metric</th>
-              <th style="padding:6px 8px">Series</th>
-              <th style="padding:6px 8px;text-align:center">State</th>
-              <th style="padding:6px 8px;text-align:right">Value</th>
-              <th style="padding:6px 8px;text-align:center">Ack'd</th>
-              <th style="padding:6px 8px;text-align:right">Actions</th>
+            <tr>
+              <th>Time</th>
+              <th>Alert Name</th>
+              <th>Metric</th>
+              <th>Series</th>
+              <th class="text-center">State</th>
+              <th class="text-end">Value</th>
+              <th class="text-center">Ack'd</th>
+              <th class="text-end">Actions</th>
             </tr>
           </thead>
           <tbody>
-            <tr :for={entry <- @alert_history} style="border-bottom:1px solid #e5e7eb">
-              <td style="padding:6px 8px;font-family:monospace;font-size:11px;white-space:nowrap"><%= format_ts(entry.created_at) %></td>
-              <td style="padding:6px 8px;font-weight:500"><%= entry.rule_name %></td>
-              <td style="padding:6px 8px;font-family:monospace;font-size:12px"><%= entry.metric %></td>
-              <td style="padding:6px 8px;font-family:monospace;font-size:11px"><%= format_labels(entry.series_labels) %></td>
-              <td style="padding:6px 8px;text-align:center">
-                <span style={"display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;" <>
-                  alert_state_style(entry.state)}>
+            <tr :for={entry <- @alert_history}>
+              <td style="font-family: monospace; font-size: 0.72rem; white-space: nowrap;"><%= format_ts(entry.created_at) %></td>
+              <td class="fw-semibold"><%= entry.rule_name %></td>
+              <td style="font-family: monospace; font-size: 0.78rem;"><%= entry.metric %></td>
+              <td style="font-family: monospace; font-size: 0.72rem;"><%= format_labels(entry.series_labels) %></td>
+              <td class="text-center">
+                <span class="badge rounded-pill" style={alert_state_style(entry.state)}>
                   <%= entry.state %>
                 </span>
               </td>
-              <td style="padding:6px 8px;text-align:right;font-family:monospace;font-size:12px">
+              <td class="text-end" style="font-family: monospace; font-size: 0.78rem;">
                 <%= if entry.value, do: format_number(entry.value), else: "—" %>
               </td>
-              <td style="padding:6px 8px;text-align:center">
+              <td class="text-center">
                 <%= if entry.acknowledged, do: "✓", else: "—" %>
               </td>
-              <td style="padding:6px 8px;text-align:right">
+              <td class="text-end">
                 <button
                   :if={!entry.acknowledged}
                   phx-click="acknowledge_alert"
                   phx-value-id={entry.id}
-                  style="padding:3px 8px;background:#fff;color:#2563eb;border:1px solid #2563eb;border-radius:4px;cursor:pointer;font-size:12px"
+                  type="button"
+                  class="btn btn-outline-primary btn-sm"
                 >
                   Ack
                 </button>
@@ -705,6 +796,8 @@ defmodule TimelessMetricsDashboard.Page do
             </tr>
           </tbody>
         </table>
+          </div>
+        </div>
       </div>
     </div>
     """
@@ -713,63 +806,88 @@ defmodule TimelessMetricsDashboard.Page do
   defp render_storage(assigns) do
     ~H"""
     <div :if={@info}>
-      <.fields_card
-        title="Database"
-        fields={[
-          {"Path", @info.db_path},
-          {"Total Storage", format_bytes(@info.storage_bytes)}
-        ]}
-      />
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <div class="card h-100">
+            <div class="card-body">
+              <h6 class="card-subtitle text-muted mb-3">Database</h6>
+              <dl class="row mb-0" style="font-size: 0.9rem;">
+                <dt class="col-sm-3">Path</dt>
+                <dd class="col-sm-9" style="word-break: break-all;">{@info.db_path || "in-memory / unavailable"}</dd>
+                <dt class="col-sm-3">Storage</dt>
+                <dd class="col-sm-9">{format_bytes(info_value(@info, :storage_bytes, :storage_bytes, 0))}</dd>
+              </dl>
+            </div>
+          </div>
+        </div>
 
-      <div style="margin-top:16px;display:flex;gap:8px">
-        <button
-          phx-click="trigger_backup"
-          style="padding:6px 16px;background:#2563eb;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:13px"
-        >
-          Create Backup
-        </button>
-        <button
-          phx-click="flush_store"
-          style="padding:6px 16px;background:#f3f4f6;color:#374151;border:1px solid #d1d5db;border-radius:4px;cursor:pointer;font-size:13px"
-        >
-          Flush to Disk
-        </button>
+        <div class="col-md-6 mb-3">
+          <div class="card h-100">
+            <div class="card-body">
+              <h6 class="card-subtitle text-muted mb-3">Maintenance</h6>
+              <div class="d-flex flex-wrap" style="gap: 0.5rem;">
+                <button phx-click="trigger_backup" type="button" class="btn btn-primary btn-sm">
+                  Create Backup
+                </button>
+                <button phx-click="flush_store" type="button" class="btn btn-outline-secondary btn-sm">
+                  Flush to Disk
+                </button>
+              </div>
+              <p class="text-muted small mb-0 mt-3">
+                Backups are stored at <code><%= backup_dir(@info) %></code>
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div :if={@backups != []} style="margin-top:16px">
-        <h4 style="font-size:14px;font-weight:600;margin-bottom:8px">Recent Backups</h4>
-        <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <div :if={@backups != []} class="card">
+        <div class="card-body p-0">
+        <table class="table table-sm table-hover mb-0">
           <thead>
-            <tr style="border-bottom:2px solid #e5e7eb;text-align:left">
-              <th style="padding:6px 8px">Timestamp</th>
-              <th style="padding:6px 8px;text-align:right">Files</th>
-              <th style="padding:6px 8px;text-align:right">Size</th>
-              <th :if={@download_path} style="padding:6px 8px;text-align:center">Download</th>
+            <tr>
+              <th>Timestamp</th>
+              <th class="text-end">Files</th>
+              <th class="text-end">Size</th>
+              <th :if={@download_path} class="text-center">Download</th>
             </tr>
           </thead>
           <tbody>
-            <tr :for={backup <- @backups} style="border-bottom:1px solid #e5e7eb">
-              <td style="padding:6px 8px;font-family:monospace"><%= backup.name %></td>
-              <td style="padding:6px 8px;text-align:right"><%= backup.file_count %></td>
-              <td style="padding:6px 8px;text-align:right"><%= format_bytes(backup.total_bytes) %></td>
-              <td :if={@download_path} style="padding:6px 8px;text-align:center">
+            <tr :for={backup <- @backups}>
+              <td style="font-family: monospace;"><%= backup.name %></td>
+              <td class="text-end"><%= backup.file_count %></td>
+              <td class="text-end"><%= format_bytes(backup.total_bytes) %></td>
+              <td :if={@download_path} class="text-center">
                 <a
                   href={"#{@download_path}/backups/#{backup.name}"}
                   download
                   target="_blank"
-                  style="color:#2563eb;text-decoration:none;font-size:12px"
+                  class="btn btn-outline-primary btn-sm"
                 >tar.gz</a>
               </td>
             </tr>
           </tbody>
         </table>
+        </div>
       </div>
-
-      <p style="margin-top:16px;font-size:12px;color:#9ca3af;line-height:1.5">
-        Backups are stored on disk at <code style="background:#f3f4f6;padding:2px 4px;border-radius:3px"><%= Path.dirname(@info.db_path) %>/backups/</code>
-      </p>
     </div>
-    <div :if={!@info} style="color:#6b7280;font-size:13px">Store not available.</div>
+    <div :if={!@info} class="text-center text-muted py-4">Store not available.</div>
+    """
+  end
+
+  attr(:label, :string, required: true)
+  attr(:value, :string, required: true)
+
+  defp stat_card(assigns) do
+    ~H"""
+    <div class="col-sm-6 col-xl-3 mb-3">
+      <div class="card h-100">
+        <div class="card-body text-center">
+          <h6 class="card-subtitle text-muted mb-1"><%= @label %></h6>
+          <h4 class="mb-0"><%= @value %></h4>
+        </div>
+      </div>
+    </div>
     """
   end
 
@@ -790,6 +908,15 @@ defmodule TimelessMetricsDashboard.Page do
         |> load_tab_data()
     end
   end
+
+  defp info_value(info, primary_key, fallback_key, default) do
+    Map.get(info, primary_key, Map.get(info, fallback_key, default))
+  end
+
+  defp backup_dir(%{db_path: path}) when is_binary(path),
+    do: Path.join(Path.dirname(path), "backups")
+
+  defp backup_dir(_info), do: "priv/observability/backups"
 
   defp load_tab_data(socket) do
     case socket.assigns.active_tab do
@@ -996,6 +1123,22 @@ defmodule TimelessMetricsDashboard.Page do
   end
 
   defp format_compression_ratio(_), do: "—"
+
+  defp format_compression_status(info) do
+    disk_points = info_value(info, :disk_points, :disk_points, 0)
+    bpp = info_value(info, :bytes_per_point, :bytes_per_point, 0.0)
+
+    cond do
+      disk_points > 0 and is_number(bpp) and bpp > 0 ->
+        format_compression_ratio(bpp)
+
+      info_value(info, :raw_buffer_points, :buffer_points, 0) > 0 ->
+        "Buffered"
+
+      true ->
+        "—"
+    end
+  end
 
   defp format_number(n) when is_integer(n) and n >= 1_000_000,
     do: "#{Float.round(n / 1_000_000, 1)}M"

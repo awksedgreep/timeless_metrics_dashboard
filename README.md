@@ -45,8 +45,8 @@ Add to your `mix.exs`:
 ```elixir
 def deps do
   [
-    {:timeless_metrics, github: "awksedgreep/timeless_metrics"},
-    {:timeless_metrics_dashboard, github: "awksedgreep/timeless_metrics_dashboard"}
+    {:timeless_metrics, "~> 6.0"},
+    {:timeless_metrics_dashboard, "~> 0.4"}
   ]
 end
 ```

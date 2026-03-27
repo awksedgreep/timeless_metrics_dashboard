@@ -1,13 +1,21 @@
 defmodule TimelessMetricsDashboard.MixProject do
   use Mix.Project
 
+  @version "0.4.2"
+  @source_url "https://github.com/awksedgreep/timeless_metrics_dashboard"
+
   def project do
     [
       app: :timeless_metrics_dashboard,
-      version: "0.4.1",
+      version: @version,
       elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
-      deps: deps()
+      deps: deps(),
+      description: "Phoenix LiveDashboard page and telemetry reporter for TimelessMetrics.",
+      source_url: @source_url,
+      homepage_url: @source_url,
+      package: package(),
+      docs: docs()
     ]
   end
 
@@ -19,13 +27,29 @@ defmodule TimelessMetricsDashboard.MixProject do
 
   defp deps do
     [
-      {:timeless_metrics, github: "awksedgreep/timeless_metrics", tag: "v5.0.1"},
+      {:timeless_metrics, "~> 6.0.3"},
       {:telemetry, "~> 1.0"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0", optional: true},
       {:phoenix_live_dashboard, "~> 0.8", optional: true},
       {:phoenix_live_view, "~> 1.0", optional: true},
       {:igniter, "~> 0.6", optional: true}
+    ]
+  end
+
+  defp package do
+    [
+      maintainers: ["Mark Cotner"],
+      licenses: ["MIT"],
+      links: %{"GitHub" => @source_url},
+      files: ~w(lib .formatter.exs mix.exs README.md)
+    ]
+  end
+
+  defp docs do
+    [
+      main: "readme",
+      extras: ["README.md"] ++ Path.wildcard("docs/*.md")
     ]
   end
 end

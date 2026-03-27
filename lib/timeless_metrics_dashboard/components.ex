@@ -9,13 +9,13 @@ defmodule TimelessMetricsDashboard.Components do
 
   def time_picker(assigns) do
     ~H"""
-    <div style="display:flex;gap:4px;margin-bottom:12px">
+    <div class="btn-group btn-group-sm" role="group" aria-label="Time range selector">
       <button
         :for={range <- @ranges}
         phx-click="select_time_range"
         phx-value-range={range}
-        style={"padding:4px 12px;border:1px solid #d1d5db;border-radius:4px;cursor:pointer;font-size:13px;" <>
-          if(range == @selected, do: "background:#2563eb;color:#fff;border-color:#2563eb;", else: "background:#fff;color:#374151;")}
+        type="button"
+        class={"btn #{if(range == @selected, do: "btn-primary", else: "btn-outline-secondary")}"}
       >
         <%= range %>
       </button>
@@ -31,8 +31,8 @@ defmodule TimelessMetricsDashboard.Components do
     assigns = assign(assigns, :svg_data_uri, svg_data_uri(assigns.svg))
 
     ~H"""
-    <div style="margin-bottom:16px">
-      <h4 :if={@title} style="margin:0 0 8px 0;font-size:14px;font-weight:600"><%= @title %></h4>
+    <div>
+      <h6 :if={@title} class="card-subtitle text-muted mb-2"><%= @title %></h6>
       <img src={@svg_data_uri} alt={@title || "metric chart"} style="display:block;max-width:100%;height:auto" />
     </div>
     """
