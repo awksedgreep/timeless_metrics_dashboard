@@ -969,7 +969,8 @@ defmodule TimelessMetricsDashboard.Page do
             TimelessMetrics.Chart.render(metric, series,
               width: socket.assigns.chart_width,
               height: socket.assigns.chart_height,
-              theme: :auto
+              theme: :auto,
+              x_domain: {from, now}
             )
 
           data_extent = compute_data_extent(series, range_seconds)
@@ -1001,7 +1002,7 @@ defmodule TimelessMetricsDashboard.Page do
         actual = max_ts - min_ts
 
         if actual < range_seconds * 0.75 do
-          "Showing #{format_duration_human(actual)} of #{format_duration_human(range_seconds)}"
+          "Data covers #{format_duration_human(actual)} within selected #{format_duration_human(range_seconds)}"
         end
     end
   end

@@ -1,7 +1,7 @@
 defmodule TimelessMetricsDashboard.MixProject do
   use Mix.Project
 
-  @version "0.4.4"
+  @version "0.4.5"
   @source_url "https://github.com/awksedgreep/timeless_metrics_dashboard"
 
   def project do
