@@ -533,10 +533,8 @@ defmodule TimelessMetricsDashboard.Page do
   defp render_metric_metadata(assigns) do
     metadata =
       if assigns.metric do
-        case TimelessMetrics.get_metadata(assigns.store, assigns.metric) do
-          {:ok, meta} -> meta
-          _ -> nil
-        end
+        {:ok, metadata} = TimelessMetrics.get_metadata(assigns.store, assigns.metric)
+        metadata
       end
 
     assigns = assign(assigns, :metadata, metadata)

@@ -1,14 +1,14 @@
 defmodule TimelessMetricsDashboard.MixProject do
   use Mix.Project
 
-  @version "0.4.5"
+  @version "0.4.6"
   @source_url "https://github.com/awksedgreep/timeless_metrics_dashboard"
 
   def project do
     [
       app: :timeless_metrics_dashboard,
       version: @version,
-      elixir: "~> 1.18",
+      elixir: ">= 1.18.0",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       description: "Phoenix LiveDashboard page and telemetry reporter for TimelessMetrics.",

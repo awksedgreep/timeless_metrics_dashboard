@@ -17,8 +17,6 @@ defmodule TimelessMetricsDashboard.Reporter do
 
   use GenServer
 
-  require Logger
-
   @default_flush_interval 10_000
   @default_prefix "telemetry"
 
