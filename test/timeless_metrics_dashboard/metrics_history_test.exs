@@ -147,4 +147,27 @@ defmodule TimelessMetricsDashboard.MetricsHistoryTest do
       assert TimelessMetricsDashboard.metrics_history(metric, @store) == []
     end
   end
+
+  test "historical reads use the selected Rust-compatible query owner without fallback" do
+    metric = summary("test.release.metric")
+
+    assert [point] =
+             TimelessMetricsDashboard.metrics_history(metric, :external_owner,
+               query_module: TimelessMetricsDashboard.QueryFixture,
+               history: 60
+             )
+
+    assert point.label == nil
+    assert point.measurement == 42.5
+    assert point.time == 1_700_000_000_000_000
+    assert_receive {:dashboard_query, :external_owner, "telemetry.test.release.metric", from, to}
+    assert to - from == 60
+  end
+end
+
+defmodule TimelessMetricsDashboard.QueryFixture do
+  def query_multi(store, metric, %{}, opts) do
+    send(self(), {:dashboard_query, store, metric, opts[:from], opts[:to]})
+    {:ok, [%{labels: %{}, points: [{1_700_000_000, 42.5}]}]}
+  end
 end

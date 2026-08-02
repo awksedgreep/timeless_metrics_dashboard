@@ -72,18 +72,22 @@ defmodule TimelessMetricsDashboard do
 
     * `:prefix` — metric name prefix (default: `"telemetry"`, must match your Reporter prefix)
     * `:history` — seconds of history to return (default: `3600`)
+    * `:query_module` — owner-compatible module implementing `query_multi/4`
+      (default: `TimelessMetrics`). Set this to the release Stack adapter for
+      Rust/libSQL historical reads; no fallback occurs if it returns an error.
   """
   @spec metrics_history(Telemetry.Metrics.t(), atom(), keyword()) :: [map()]
   def metrics_history(metric, store, opts \\ []) do
     prefix = Keyword.get(opts, :prefix, "telemetry")
     history = Keyword.get(opts, :history, 3600)
+    query_module = Keyword.get(opts, :query_module, TimelessMetrics)
 
     metric_name = build_metric_name(prefix, metric)
     from = System.os_time(:second) - history
     to = System.os_time(:second)
 
     # Query all label combinations for this metric
-    case TimelessMetrics.query_multi(store, metric_name, %{}, from: from, to: to) do
+    case query_module.query_multi(store, metric_name, %{}, from: from, to: to) do
       {:ok, series_list} ->
         series_list
         |> Enum.flat_map(fn %{labels: labels, points: points} ->
