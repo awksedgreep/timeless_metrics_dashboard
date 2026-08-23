@@ -382,7 +382,7 @@ defmodule TimelessMetricsDashboard.Page do
           value={format_bytes(info_value(@info, :compressed_bytes, :raw_compressed_bytes, 0))}
         />
         <.stat_card
-          label="Bytes / Point"
+          label="Stored Bytes / Point"
           value={format_number(info_value(@info, :bytes_per_point, :bytes_per_point, 0.0))}
         />
         <.stat_card
@@ -899,7 +899,7 @@ defmodule TimelessMetricsDashboard.Page do
         assign(socket, info: nil, metrics_list: [], alerts: [], backups: [])
 
       info ->
-        info = enrich_info(info)
+        info = enrich_info(info, store)
 
         socket
         |> assign(info: info)
@@ -1098,7 +1098,29 @@ defmodule TimelessMetricsDashboard.Page do
     :exit, _ -> nil
   end
 
-  defp enrich_info(info), do: info
+  # `:raw_ingested_bytes` is the honest raw side of the compression ratio:
+  # 16 bytes per sample (8-byte timestamp + 8-byte value), the same figure
+  # the timeless-metrics-api stats JSON serves. It derives from durable
+  # point counts, so it is lifetime-accurate. Newer timeless_metrics
+  # releases may surface it in `info/1` directly (`Map.put_new` keeps that
+  # value); until then we derive it for libSQL stores, whose
+  # `storage_bytes` is data-block payload only (`bytes_on_disk`). The
+  # deprecated engines report whole-file bytes there — file, WAL,
+  # freelist, and index bytes never belong inside a compression ratio —
+  # so they keep the bytes-per-point fallback display instead.
+  @doc false
+  def enrich_info(info, store) do
+    if libsql_store?(store) do
+      Map.put_new(info, :raw_ingested_bytes, 16 * Map.get(info, :total_points, 0))
+    else
+      info
+    end
+  end
+
+  # Mirrors TimelessMetrics.Supervisor, which records the engine here.
+  defp libsql_store?(store) do
+    :persistent_term.get({TimelessMetrics, store, :engine}, nil) == :libsql
+  end
 
   # --- Formatters ---
 
@@ -1114,22 +1136,34 @@ defmodule TimelessMetricsDashboard.Page do
   defp format_bytes(bytes) when is_integer(bytes), do: "#{bytes} B"
   defp format_bytes(_), do: "—"
 
-  # 16 bytes per raw point (8-byte timestamp + 8-byte value)
-  defp format_compression_ratio(bpp) when is_number(bpp) and bpp > 0 do
-    ratio = 16 / bpp
-    pct = Float.round((1 - bpp / 16) * 100, 1)
+  # The honest compression figure: raw bytes over stored data-block
+  # bytes. Index, WAL, freelist, and whole-file bytes never appear here.
+  defp format_compression_ratio(raw, stored)
+       when is_number(raw) and raw > 0 and is_number(stored) and stored > 0 do
+    ratio = raw / stored
+    pct = Float.round((1 - stored / raw) * 100, 1)
     "#{Float.round(ratio, 1)}x (#{pct}% smaller)"
   end
 
-  defp format_compression_ratio(_), do: "—"
+  defp format_compression_ratio(_, _), do: "—"
 
-  defp format_compression_status(info) do
+  @doc false
+  def format_compression_status(info) do
+    raw = info_value(info, :raw_ingested_bytes, :raw_ingested_bytes, 0)
+    stored = info_value(info, :storage_bytes, :storage_bytes, 0)
     disk_points = info_value(info, :disk_points, :disk_points, 0)
     bpp = info_value(info, :bytes_per_point, :bytes_per_point, 0.0)
 
     cond do
+      is_number(raw) and raw > 0 and is_number(stored) and stored > 0 ->
+        format_compression_ratio(raw, stored)
+
       disk_points > 0 and is_number(bpp) and bpp > 0 ->
-        format_compression_ratio(bpp)
+        # Older stores without raw_ingested_bytes: 16 raw bytes per
+        # point (8-byte timestamp + 8-byte value) against the
+        # engine-reported stored bytes per point, unchanged from the
+        # pre-raw-counter display.
+        format_compression_ratio(16.0, bpp)
 
       info_value(info, :raw_buffer_points, :buffer_points, 0) > 0 ->
         "Buffered"

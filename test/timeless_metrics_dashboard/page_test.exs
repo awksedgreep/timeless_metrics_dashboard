@@ -61,4 +61,72 @@ defmodule TimelessMetricsDashboard.PageTest do
       assert text =~ "(1)"
     end
   end
+
+  describe "format_compression_status/1" do
+    test "shows the honest ratio when raw_ingested_bytes is present" do
+      info = %{
+        raw_ingested_bytes: 16_000_000,
+        storage_bytes: 2_000_000,
+        disk_points: 1_000_000,
+        bytes_per_point: 2.0
+      }
+
+      assert Page.format_compression_status(info) == "8.0x (87.5% smaller)"
+    end
+
+    test "falls back to the bytes-per-point display when raw_ingested_bytes is absent" do
+      info = %{disk_points: 1_000, bytes_per_point: 4.0}
+
+      assert Page.format_compression_status(info) == "4.0x (75.0% smaller)"
+    end
+
+    test "falls back to the bytes-per-point display when raw_ingested_bytes is zero" do
+      info = %{raw_ingested_bytes: 0, storage_bytes: 0, disk_points: 1_000, bytes_per_point: 4.0}
+
+      assert Page.format_compression_status(info) == "4.0x (75.0% smaller)"
+    end
+
+    test "shows Buffered when nothing is on disk yet" do
+      info = %{raw_ingested_bytes: 160, storage_bytes: 0, raw_buffer_points: 10}
+
+      assert Page.format_compression_status(info) == "Buffered"
+    end
+
+    test "shows a dash for an empty store" do
+      assert Page.format_compression_status(%{}) == "—"
+    end
+  end
+
+  describe "enrich_info/2" do
+    test "derives raw_ingested_bytes as 16 bytes per point for a libsql store" do
+      enriched = Page.enrich_info(%{total_points: 3}, @store)
+
+      assert enriched.raw_ingested_bytes == 48
+    end
+
+    test "keeps a raw_ingested_bytes already provided by the store" do
+      enriched = Page.enrich_info(%{total_points: 3, raw_ingested_bytes: 160}, @store)
+
+      assert enriched.raw_ingested_bytes == 160
+    end
+
+    test "does not derive raw_ingested_bytes for non-libsql stores" do
+      enriched = Page.enrich_info(%{total_points: 3}, :not_a_running_store)
+
+      refute Map.has_key?(enriched, :raw_ingested_bytes)
+    end
+
+    test "enriched live store info renders the honest ratio" do
+      TimelessMetrics.write(@store, "test.metric", %{"host" => "a"}, 42.0)
+      TimelessMetrics.flush(@store)
+
+      info = @store |> TimelessMetrics.info() |> Page.enrich_info(@store)
+
+      assert info.raw_ingested_bytes == 16 * info.total_points
+      assert info.raw_ingested_bytes > 0
+
+      rendered = Page.format_compression_status(info)
+      assert rendered =~ ~r/^\d+(\.\d+)?x \(-?\d+(\.\d+)?% smaller\)$/
+    end
+  end
 end
