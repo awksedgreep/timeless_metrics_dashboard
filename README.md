@@ -45,7 +45,7 @@ Add to your `mix.exs`:
 ```elixir
 def deps do
   [
-    {:timeless_metrics, "~> 6.0"},
+    {:timeless_metrics, "~> 6.2"},
     {:timeless_metrics_dashboard, "~> 0.4"}
   ]
 end
@@ -89,6 +89,13 @@ end
 ```
 
 The router macro sets up LiveDashboard with the metrics history callback, the Timeless page, and the backup download plug.
+
+The history callback reads from TimelessMetrics by default. To back the
+history charts with a different owner-compatible store (for example the
+release Stack adapter for Rust/libSQL historical reads), call
+`TimelessMetricsDashboard.metrics_history/3` yourself with `:query_module`
+set to the adapter module; it must implement `query_multi/4`, and no
+fallback occurs if it returns an error.
 
 #### 3. Reporter Only (no Phoenix)
 
