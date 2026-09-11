@@ -61,12 +61,22 @@ defmodule TimelessMetricsDashboard.DefaultMetricsTest do
     end
 
     test "works with different repo prefixes" do
-      metrics = DefaultMetrics.ecto_metrics("other_app.different_repo")
+      metrics = DefaultMetrics.ecto_metrics([:other_app, :different_repo])
       assert length(metrics) > 0
 
       Enum.each(metrics, fn metric ->
         assert hd(metric.event_name) == :other_app
       end)
+    end
+
+    test "rejects unknown string segments without interning them" do
+      segment = "dynamic_repo_#{System.unique_integer([:positive])}"
+
+      assert_raise ArgumentError, fn ->
+        DefaultMetrics.ecto_metrics("my_app.#{segment}")
+      end
+
+      assert_raise ArgumentError, fn -> String.to_existing_atom(segment) end
     end
   end
 
@@ -116,5 +126,12 @@ defmodule TimelessMetricsDashboard.DefaultMetricsTest do
       assert Enum.any?(names, &String.starts_with?(&1, "timeless.http"))
       assert Enum.any?(names, &String.starts_with?(&1, "timeless.write"))
     end
+  end
+
+  test "default metric names are unique" do
+    metrics = DefaultMetrics.metrics() ++ DefaultMetrics.ecto_metrics([:my_app, :repo])
+    names = Enum.map(metrics, &Enum.join(&1.name, "."))
+
+    assert length(names) == length(Enum.uniq(names))
   end
 end

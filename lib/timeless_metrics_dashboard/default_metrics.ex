@@ -10,7 +10,7 @@ defmodule TimelessMetricsDashboard.DefaultMetrics do
       metrics =
         TimelessMetricsDashboard.DefaultMetrics.vm_metrics() ++
         TimelessMetricsDashboard.DefaultMetrics.phoenix_metrics() ++
-        TimelessMetricsDashboard.DefaultMetrics.ecto_metrics("my_app.repo") ++
+        TimelessMetricsDashboard.DefaultMetrics.ecto_metrics([:my_app, :repo]) ++
         TimelessMetricsDashboard.DefaultMetrics.timeless_metrics()
 
       {TimelessMetricsDashboard, store: :metrics, metrics: metrics}
@@ -62,7 +62,9 @@ defmodule TimelessMetricsDashboard.DefaultMetrics do
         tags: [:method, :status],
         tag_values: &phoenix_tag_values/1
       ),
-      counter("phoenix.endpoint.stop.duration",
+      counter("phoenix.endpoint.stop.count",
+        event_name: [:phoenix, :endpoint, :stop],
+        measurement: :duration,
         tags: [:method, :status],
         tag_values: &phoenix_tag_values/1
       ),
@@ -73,7 +75,9 @@ defmodule TimelessMetricsDashboard.DefaultMetrics do
         tags: [:method, :route, :status],
         tag_values: &phoenix_router_tag_values/1
       ),
-      counter("phoenix.router_dispatch.stop.duration",
+      counter("phoenix.router_dispatch.stop.count",
+        event_name: [:phoenix, :router_dispatch, :stop],
+        measurement: :duration,
         tags: [:method, :route, :status],
         tag_values: &phoenix_router_tag_values/1
       ),
@@ -84,7 +88,9 @@ defmodule TimelessMetricsDashboard.DefaultMetrics do
         tags: [:channel, :transport],
         tag_values: &channel_joined_tag_values/1
       ),
-      counter("phoenix.channel_joined.stop.duration",
+      counter("phoenix.channel_joined.stop.count",
+        event_name: [:phoenix, :channel_joined, :stop],
+        measurement: :duration,
         tags: [:channel, :transport],
         tag_values: &channel_joined_tag_values/1
       ),
@@ -106,15 +112,17 @@ defmodule TimelessMetricsDashboard.DefaultMetrics do
   @doc """
   Ecto repo metrics.
 
-  Takes the repo event prefix as a string (e.g., `"my_app.repo"`).
+  Takes the repo event prefix as an atom list (preferred, e.g.
+  `[:my_app, :repo]`) or a string containing existing atoms (e.g.
+  `"my_app.repo"`). String segments are never interned, so a misspelled or
+  dynamic prefix raises instead of leaking atoms.
   Captures query total_time, queue_time, decode_time, and idle_time,
   tagged by source table.
   """
-  def ecto_metrics(repo_prefix) do
-    event_prefix =
-      repo_prefix
-      |> String.split(".")
-      |> Enum.map(&String.to_atom/1)
+  def ecto_metrics(event_prefix) when is_list(event_prefix) do
+    unless event_prefix != [] and Enum.all?(event_prefix, &is_atom/1) do
+      raise ArgumentError, "Ecto event prefix must be a non-empty list of atoms"
+    end
 
     [
       summary(event_prefix ++ [:query, :total_time],
@@ -122,7 +130,9 @@ defmodule TimelessMetricsDashboard.DefaultMetrics do
         tags: [:source],
         tag_values: &ecto_tag_values/1
       ),
-      counter(event_prefix ++ [:query, :total_time],
+      counter(event_prefix ++ [:query, :count],
+        event_name: event_prefix ++ [:query],
+        measurement: :total_time,
         tags: [:source],
         tag_values: &ecto_tag_values/1
       ),
@@ -142,6 +152,23 @@ defmodule TimelessMetricsDashboard.DefaultMetrics do
         tag_values: &ecto_tag_values/1
       )
     ]
+  end
+
+  def ecto_metrics(repo_prefix) when is_binary(repo_prefix) do
+    event_prefix =
+      repo_prefix
+      |> String.split(".")
+      |> Enum.map(fn segment ->
+        try do
+          String.to_existing_atom(segment)
+        rescue
+          ArgumentError ->
+            raise ArgumentError,
+                  "unknown Ecto event prefix segment #{inspect(segment)}; pass the static atom list instead"
+        end
+      end)
+
+    ecto_metrics(event_prefix)
   end
 
   @doc """
@@ -219,7 +246,10 @@ defmodule TimelessMetricsDashboard.DefaultMetrics do
 
       # HTTP import throughput
       summary("timeless.http.import.sample_count"),
-      counter("timeless.http.import.sample_count"),
+      counter("timeless.http.import.event_count",
+        event_name: [:timeless, :http, :import],
+        measurement: :sample_count
+      ),
       summary("timeless.http.import.error_count"),
 
       # Backpressure — early warning
@@ -253,7 +283,7 @@ defmodule TimelessMetricsDashboard.DefaultMetrics do
 
   defp phoenix_tag_values(metadata), do: metadata
 
-  defp phoenix_router_tag_values(%{conn: conn, route: route}) do
+  defp phoenix_router_tag_values(%{conn: conn, route: route}) when is_binary(route) do
     %{
       method: conn.method,
       route: route,
@@ -264,7 +294,8 @@ defmodule TimelessMetricsDashboard.DefaultMetrics do
   defp phoenix_router_tag_values(%{conn: conn}) do
     %{
       method: conn.method,
-      route: conn.request_path,
+      # A raw request path turns every resource ID into a new time series.
+      route: "unknown",
       status: conn.status
     }
   end
@@ -273,7 +304,7 @@ defmodule TimelessMetricsDashboard.DefaultMetrics do
 
   defp channel_joined_tag_values(%{socket: socket}) do
     %{
-      channel: inspect(socket.channel),
+      channel: module_label(socket.channel),
       transport: to_string(socket.transport)
     }
   end
@@ -282,7 +313,7 @@ defmodule TimelessMetricsDashboard.DefaultMetrics do
 
   defp channel_handled_in_tag_values(%{socket: socket, event: event}) do
     %{
-      channel: inspect(socket.channel),
+      channel: module_label(socket.channel),
       event: event
     }
   end
@@ -293,19 +324,19 @@ defmodule TimelessMetricsDashboard.DefaultMetrics do
   defp ecto_tag_values(_metadata), do: %{source: "unknown"}
 
   defp live_view_mount_tag_values(%{socket: socket}) do
-    %{view: inspect(socket.view)}
+    %{view: module_label(socket.view)}
   end
 
   defp live_view_mount_tag_values(metadata), do: metadata
 
   defp live_view_event_tag_values(%{socket: socket, event: event}) do
-    %{view: inspect(socket.view), event: event}
+    %{view: module_label(socket.view), event: event}
   end
 
   defp live_view_event_tag_values(metadata), do: metadata
 
   defp live_component_event_tag_values(%{socket: socket, event: event}) do
-    %{component: inspect(socket.assigns.__component__), event: event}
+    %{component: module_label(socket.assigns.__component__), event: event}
   rescue
     _ -> %{component: "unknown", event: event}
   end
@@ -317,4 +348,13 @@ defmodule TimelessMetricsDashboard.DefaultMetrics do
 
   defp timeless_shard_tag_values(%{shard: shard}), do: %{shard: to_string(shard)}
   defp timeless_shard_tag_values(metadata), do: metadata
+
+  defp module_label(module) when is_atom(module) do
+    case Atom.to_string(module) do
+      "Elixir." <> name -> String.slice(name, 0, 128)
+      _other -> "unknown"
+    end
+  end
+
+  defp module_label(_module), do: "unknown"
 end

@@ -72,27 +72,42 @@ defmodule TimelessMetricsDashboard do
 
     * `:prefix` — metric name prefix (default: `"telemetry"`, must match your Reporter prefix)
     * `:history` — seconds of history to return (default: `3600`)
-    * `:query_module` — owner-compatible module implementing `query_multi/4`
+    * `:query_module` — owner-compatible module implementing
+      `query_aggregate_multi/4`
       (default: `TimelessMetrics`). Set this to the release Stack adapter for
       Rust/libSQL historical reads; no fallback occurs if it returns an error.
+    * `:max_series` — maximum series returned (default: `20`)
+    * `:max_points` — maximum aggregate points returned per series
+      (default: `200`)
   """
   @spec metrics_history(Telemetry.Metrics.t(), atom(), keyword()) :: [map()]
   def metrics_history(metric, store, opts \\ []) do
     prefix = Keyword.get(opts, :prefix, "telemetry")
-    history = Keyword.get(opts, :history, 3600)
+    history = positive_option(opts, :history, 3600)
     query_module = Keyword.get(opts, :query_module, TimelessMetrics)
+    max_series = positive_option(opts, :max_series, 20)
+    max_points = positive_option(opts, :max_points, 200)
 
     metric_name = build_metric_name(prefix, metric)
-    from = System.os_time(:second) - history
-    to = System.os_time(:second)
+    now = System.os_time(:second)
+    from = now - history
+    bucket_seconds = max(div(history + max_points - 1, max_points), 1)
 
-    # Query all label combinations for this metric
-    case query_module.query_multi(store, metric_name, %{}, from: from, to: to) do
+    case query_module.query_aggregate_multi(store, metric_name, %{},
+           from: from,
+           to: now,
+           bucket: {bucket_seconds, :seconds},
+           aggregate: :avg
+         ) do
       {:ok, series_list} ->
         series_list
-        |> Enum.flat_map(fn %{labels: labels, points: points} ->
+        |> Enum.take(max_series)
+        |> Enum.flat_map(fn %{labels: labels, data: points} ->
           label = build_label(metric, labels)
-          Enum.map(points, fn {timestamp, value} -> {label, timestamp, value} end)
+
+          points
+          |> Enum.take(-max_points)
+          |> Enum.map(fn {timestamp, value} -> {label, timestamp, value} end)
         end)
         # Group by label, then average overlapping timestamps within each group.
         # Multiple Timeless series can collapse to the same label when the
@@ -134,5 +149,12 @@ defmodule TimelessMetricsDashboard do
       |> Enum.join(" ")
 
     if label == "", do: nil, else: label
+  end
+
+  defp positive_option(opts, key, default) do
+    case Keyword.get(opts, key, default) do
+      value when is_integer(value) and value > 0 -> value
+      _ -> default
+    end
   end
 end

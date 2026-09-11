@@ -17,7 +17,7 @@ defmodule TimelessMetricsDashboard.Supervisor do
     reporter_extra = Keyword.get(opts, :reporter, [])
 
     reporter_opts =
-      [store: name, metrics: metrics] ++ reporter_extra
+      Keyword.merge([store: name, metrics: metrics], reporter_extra)
 
     children = [
       {TimelessMetrics, name: name, data_dir: data_dir},

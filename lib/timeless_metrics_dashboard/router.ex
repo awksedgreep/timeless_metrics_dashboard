@@ -19,6 +19,9 @@ defmodule TimelessMetricsDashboard.Router do
     * `:name` — TimelessMetrics store name (default: `:timeless_metrics`)
     * `:metrics` — metrics module passed to LiveDashboard (default: `TimelessMetricsDashboard.DefaultMetrics`)
     * `:download_path` — path for backup downloads (default: `"/timeless/downloads"`)
+    * `:download_auth_token` — optional bearer token for backup downloads
+    * `:live_session_name` — unique LiveDashboard session name (default:
+      `:timeless_metrics_dashboard`)
     * `:live_dashboard` — extra opts merged into `live_dashboard` call
   """
 
@@ -32,19 +35,28 @@ defmodule TimelessMetricsDashboard.Router do
       store = Keyword.get(opts, :name, :timeless_metrics)
       metrics_mod = Keyword.get(opts, :metrics, TimelessMetricsDashboard.DefaultMetrics)
       download_path = Keyword.get(opts, :download_path, "/timeless/downloads")
+      download_auth_token = Keyword.get(opts, :download_auth_token)
+      live_session_name = Keyword.get(opts, :live_session_name, :timeless_metrics_dashboard)
       extra = Keyword.get(opts, :live_dashboard, [])
 
-      forward(download_path, TimelessMetricsDashboard.DownloadPlug, store: store)
+      forward(download_path, TimelessMetricsDashboard.DownloadPlug,
+        store: store,
+        auth_token: download_auth_token
+      )
 
       dashboard_opts =
-        [
-          live_session_name: :timeless_metrics_dashboard,
-          metrics: metrics_mod,
-          metrics_history: {TimelessMetricsDashboard, :metrics_history, [store]},
-          additional_pages: [
-            timeless: {TimelessMetricsDashboard.Page, store: store, download_path: download_path}
-          ]
-        ] ++ extra
+        Keyword.merge(
+          [
+            live_session_name: live_session_name,
+            metrics: metrics_mod,
+            metrics_history: {TimelessMetricsDashboard, :metrics_history, [store]},
+            additional_pages: [
+              timeless:
+                {TimelessMetricsDashboard.Page, store: store, download_path: download_path}
+            ]
+          ],
+          extra
+        )
 
       live_dashboard(path, dashboard_opts)
     end

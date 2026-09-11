@@ -27,13 +27,13 @@
 - [ ] Add to timeless README as companion project
 
 ### Metrics Tab — Scale
-- [ ] Pagination or virtual scroll if metric list gets huge
+- [x] Paginate the metric list to keep the rendered LiveView payload bounded
 - [ ] Test with ddnet-scale data (10K devices x 100 metrics = 1M series)
 
 ### Metrics Tab — UX
 - [ ] Multi-series overlay (select multiple metrics or label values to compare)
 - [ ] Show latest value next to metric name in sidebar
-- [ ] Label filter dropdown (e.g., pick a specific host/device)
+- [x] Label-series filter dropdown (e.g., pick a specific host/device)
 
 ### Overview Tab
 - [ ] Overnight compression ratio results — update memory/README with real numbers
@@ -58,5 +58,5 @@
 ### Hardening
 - [ ] Error handling for store going down mid-session
 - [ ] Handle very large query results gracefully (chart with 100K points)
-- [ ] Rate-limit backup creation in UI
-- [ ] DownloadPlug: streaming for large backups instead of in-memory tar
+- [x] Rate-limit concurrent and repeated backup creation in UI
+- [x] DownloadPlug: stream archive files instead of buffering them in memory

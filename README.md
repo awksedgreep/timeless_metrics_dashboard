@@ -71,7 +71,7 @@ children = [
     metrics:
       TimelessMetricsDashboard.DefaultMetrics.vm_metrics() ++
       TimelessMetricsDashboard.DefaultMetrics.phoenix_metrics() ++
-      TimelessMetricsDashboard.DefaultMetrics.ecto_metrics("my_app.repo") ++
+      TimelessMetricsDashboard.DefaultMetrics.ecto_metrics([:my_app, :repo]) ++
       TimelessMetricsDashboard.DefaultMetrics.live_view_metrics()}
 ]
 ```
@@ -94,7 +94,7 @@ The history callback reads from TimelessMetrics by default. To back the
 history charts with a different owner-compatible store (for example the
 release Stack adapter for Rust/libSQL historical reads), call
 `TimelessMetricsDashboard.metrics_history/3` yourself with `:query_module`
-set to the adapter module; it must implement `query_multi/4`, and no
+set to the adapter module; it must implement `query_aggregate_multi/4`, and no
 fallback occurs if it returns an error.
 
 #### 3. Reporter Only (no Phoenix)
@@ -109,6 +109,10 @@ children = [
     metrics: TimelessMetricsDashboard.DefaultMetrics.vm_metrics()}
 ]
 ```
+
+The page, component, and download modules are compiled only when their Phoenix
+or Plug dependencies are available. A reporter-only application does not need
+to add those optional dependencies.
 
 ## Dashboard Tabs
 
@@ -143,9 +147,13 @@ TimelessMetrics.create_alert(:timeless_metrics,
   threshold: 500,
   duration: 120,
   aggregate: :avg,
-  webhook_url: "https://ntfy.sh/my-alerts"
+  webhook_url: "https://ntfy.sh/my-alerts",
+  webhook_format: "ntfy"
 )
 ```
+
+The alert form supports generic JSON webhooks and ntfy topic URLs and shows the
+configured format in the rule list.
 
 ### Storage
 
@@ -169,6 +177,8 @@ Database path, size, and retention settings. Create and download backups, flush 
 | `:flush_interval` | `10_000` | Milliseconds between batch flushes |
 | `:prefix` | `"telemetry"` | Metric name prefix |
 | `:name` | `TimelessMetricsDashboard.Reporter` | GenServer name |
+| `:max_buffer_size` | `100_000` | Maximum queued points before new points are dropped and counted |
+| `:batch_size` | `5_000` | Maximum points written in each store batch |
 
 ## Page Options
 
@@ -177,7 +187,15 @@ Database path, size, and retention settings. Create and download backups, flush 
 | `:store` | *required* | TimelessMetrics store name (atom) |
 | `:chart_width` | `700` | SVG chart width in pixels |
 | `:chart_height` | `250` | SVG chart height in pixels |
+| `:metric_page_size` | `200` | Maximum metric buttons rendered per page |
+| `:max_chart_series` | `20` | Maximum series rendered on one chart |
 | `:download_path` | `nil` | Path to DownloadPlug (enables download links) |
+
+The router macro also accepts `:live_session_name` for multiple dashboard
+mounts and `:download_auth_token` to require a bearer token for backup
+downloads. Archive downloads are serialized per store by default and use the
+web server's fixed-size HTTP chunks instead of loading the archive into BEAM
+memory.
 
 ## Default Metrics
 
@@ -185,7 +203,7 @@ Pre-built metric definitions for common events:
 
 - **`TimelessMetricsDashboard.DefaultMetrics.vm_metrics/0`** -- Memory, run queues, system counts. Requires `:telemetry_poller`.
 - **`TimelessMetricsDashboard.DefaultMetrics.phoenix_metrics/0`** -- Endpoint and router dispatch duration/count, tagged by method/route/status.
-- **`TimelessMetricsDashboard.DefaultMetrics.ecto_metrics/1`** -- Query total_time and queue_time, tagged by source table. Pass the repo event prefix (e.g., `"my_app.repo"`).
+- **`TimelessMetricsDashboard.DefaultMetrics.ecto_metrics/1`** -- Query total_time and queue_time, tagged by source table. Pass the repo event prefix as existing atoms (e.g., `[:my_app, :repo]`).
 - **`TimelessMetricsDashboard.DefaultMetrics.live_view_metrics/0`** -- Mount and handle_event duration, tagged by view/event.
 - **`TimelessMetricsDashboard.DefaultMetrics.metrics/0`** -- All non-repo-specific metrics combined.
 
@@ -195,9 +213,9 @@ Mix and match with your own custom `Telemetry.Metrics` definitions.
 
 The reporter handler runs in the **caller's process**, not the GenServer. All hot-path operations are lock-free:
 
-- **Cache ETS** (`read_concurrency: true`) -- Maps `{metric_name, labels}` to `series_id`. First miss calls `TimelessMetrics.resolve_series/3`, then all subsequent lookups are O(1).
-- **Buffer ETS** (`write_concurrency: true`) -- Accumulates `{series_id, timestamp, value}` from concurrent handlers.
-- **Periodic flush** -- GenServer drains the buffer and calls `TimelessMetrics.write_batch_resolved/2`.
+- **Prepared metric config** -- Output names are built once when the reporter starts.
+- **Bounded buffer ETS** (`write_concurrency: true`) -- Accepts concurrent points up to `:max_buffer_size`; excess points are dropped without blocking emitters and exposed by `Reporter.stats/1`.
+- **Periodic flush** -- The GenServer writes chunks with `TimelessMetrics.write_batch/2` and deletes only successfully accepted entries. Concurrent inserts remain queued, and failed writes are retried.
 
 ## Demo
 

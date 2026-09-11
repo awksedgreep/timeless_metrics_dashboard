@@ -40,7 +40,7 @@ defmodule TimelessMetricsDashboard.MetricsHistoryTest do
 
       # Metric with no tags — all series collapse to label: nil
       metric = summary("test.query.duration")
-      result = TimelessMetricsDashboard.metrics_history(metric, @store)
+      result = TimelessMetricsDashboard.metrics_history(metric, @store, max_points: 3600)
 
       times = Enum.map(result, & &1.time)
       assert times == Enum.sort(times), "Points must be sorted chronologically"
@@ -54,7 +54,7 @@ defmodule TimelessMetricsDashboard.MetricsHistoryTest do
       write_and_flush("telemetry.test.single.value", %{}, 3.0, now - 1)
 
       metric = summary("test.single.value")
-      result = TimelessMetricsDashboard.metrics_history(metric, @store)
+      result = TimelessMetricsDashboard.metrics_history(metric, @store, max_points: 3600)
 
       times = Enum.map(result, & &1.time)
       assert times == Enum.sort(times)
@@ -71,7 +71,7 @@ defmodule TimelessMetricsDashboard.MetricsHistoryTest do
       write_and_flush("telemetry.test.overlap.value", %{"source" => "b"}, 200.0, now)
 
       metric = summary("test.overlap.value")
-      result = TimelessMetricsDashboard.metrics_history(metric, @store)
+      result = TimelessMetricsDashboard.metrics_history(metric, @store, max_points: 3600)
 
       # Should produce one point (averaged), not two
       assert length(result) == 1
@@ -88,7 +88,7 @@ defmodule TimelessMetricsDashboard.MetricsHistoryTest do
 
       # Metric WITH tags — each series keeps its own label
       metric = summary("test.tagged.value", tags: [:method], tag_values: & &1)
-      result = TimelessMetricsDashboard.metrics_history(metric, @store)
+      result = TimelessMetricsDashboard.metrics_history(metric, @store, max_points: 3600)
 
       # Should produce two separate points with different labels
       assert length(result) == 2
@@ -117,7 +117,7 @@ defmodule TimelessMetricsDashboard.MetricsHistoryTest do
       end
 
       metric = summary("test.multi.overlap")
-      result = TimelessMetricsDashboard.metrics_history(metric, @store)
+      result = TimelessMetricsDashboard.metrics_history(metric, @store, max_points: 3600)
 
       assert length(result) == 2
 
@@ -135,7 +135,7 @@ defmodule TimelessMetricsDashboard.MetricsHistoryTest do
       write_and_flush("telemetry.test.time.format", %{}, 1.0, now)
 
       metric = summary("test.time.format")
-      [point] = TimelessMetricsDashboard.metrics_history(metric, @store)
+      [point] = TimelessMetricsDashboard.metrics_history(metric, @store, max_points: 3600)
 
       assert point.time == now * 1_000_000
     end
@@ -145,6 +145,22 @@ defmodule TimelessMetricsDashboard.MetricsHistoryTest do
     test "returns empty list when no data exists" do
       metric = summary("test.nonexistent.metric")
       assert TimelessMetricsDashboard.metrics_history(metric, @store) == []
+    end
+
+    test "bounds series and points returned by an aggregate query" do
+      metric = summary("test.bounded.value", tags: [:host])
+
+      result =
+        TimelessMetricsDashboard.metrics_history(metric, :external_owner,
+          query_module: TimelessMetricsDashboard.BoundedQueryFixture,
+          history: 100,
+          max_series: 3,
+          max_points: 4
+        )
+
+      assert length(result) == 12
+      assert result |> Enum.map(& &1.label) |> Enum.uniq() |> length() == 3
+      assert_receive {:bounded_query, {25, :seconds}, :avg}
     end
   end
 
@@ -160,14 +176,37 @@ defmodule TimelessMetricsDashboard.MetricsHistoryTest do
     assert point.label == nil
     assert point.measurement == 42.5
     assert point.time == 1_700_000_000_000_000
-    assert_receive {:dashboard_query, :external_owner, "telemetry.test.release.metric", from, to}
+
+    assert_receive {:dashboard_query, :external_owner, "telemetry.test.release.metric", from, to,
+                    {1, :seconds}, :avg}
+
     assert to - from == 60
   end
 end
 
 defmodule TimelessMetricsDashboard.QueryFixture do
-  def query_multi(store, metric, %{}, opts) do
-    send(self(), {:dashboard_query, store, metric, opts[:from], opts[:to]})
-    {:ok, [%{labels: %{}, points: [{1_700_000_000, 42.5}]}]}
+  def query_aggregate_multi(store, metric, %{}, opts) do
+    send(
+      self(),
+      {:dashboard_query, store, metric, opts[:from], opts[:to], opts[:bucket], opts[:aggregate]}
+    )
+
+    {:ok, [%{labels: %{}, data: [{1_700_000_000, 42.5}]}]}
+  end
+end
+
+defmodule TimelessMetricsDashboard.BoundedQueryFixture do
+  def query_aggregate_multi(_store, _metric, %{}, opts) do
+    send(self(), {:bounded_query, opts[:bucket], opts[:aggregate]})
+
+    series =
+      for host <- 1..10 do
+        %{
+          labels: %{"host" => "host-#{host}"},
+          data: for(timestamp <- 1..10, do: {timestamp, timestamp * 1.0})
+        }
+      end
+
+    {:ok, series}
   end
 end
